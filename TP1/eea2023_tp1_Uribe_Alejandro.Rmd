@@ -1,0 +1,80 @@
+---
+title: "Trabajo Práctico 1: Regresión lineal"
+subtitle: "Enfoque Estadístico del Aprendizaje"
+author: 
+  - name: "Alejandro Uribe"
+    url: https://github.com/jjallaire
+    affiliation: RStudio
+    affiliation_url: https://www.rstudio.com
+date: "`r format(Sys.time(), '%d %B %Y')`"
+lang: en
+description: |
+  Asignatura: Enfoque Estadístico del Aprendizaje
+output:
+  html_document:
+    page-layout: full
+    df_print: paged
+    code-fold: show
+    code-line-numbers: false
+    code-tools: true
+    code-overflow: scroll
+    theme: cerulean
+    number-sections: true
+    highlight: pygments
+    tidy: true
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    toc-location: left
+    css: doc.css
+    grid:
+      body-width: 2000px
+      sidebar-width: 200px
+      margin-width: 200px
+website:
+  sidebar:
+      style: docked
+      search: false
+execute:
+  echo: false
+  warning: false
+  freeze: auto
+---
+
+# Librerías
+
+```{r, echo=TRUE, include=TRUE, results='hide', message=FALSE}
+library(splitstackshape)
+library(ggplot2)
+library(magrittr)
+library(moments)
+library(dplyr)
+library(patchwork)
+library(car)
+library(knitr)
+library(bookdown)
+```
+
+```{r set-options, echo=FALSE, cache=FALSE, include=FALSE, results='hide'}
+options(width = 10000)
+options(digits = 4)
+options(nsmall = 0)
+```
+
+```{r setup, echo=FALSE, include=FALSE, results='hide'}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+
+
+
+
+
+
+```{r include=FALSE, collapse=TRUE, echo=FALSE}
+library(styler)
+styler::style_file("eea2023_tp1_Uribe_Alejandro.Rmd")
+```
