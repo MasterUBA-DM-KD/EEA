@@ -10,7 +10,7 @@
 
 
 
-<meta name="date" content="2023-09-18" />
+<meta name="date" content="2023-09-19" />
 
 <title>Trabajo Práctico 1: Regresión lineal</title>
 
@@ -2826,7 +2826,7 @@ border-radius: 0px;
 <h3 class="subtitle">Enfoque Estadístico del Aprendizaje</h3>
 <h4 class="author">Alejandro Uribe</h4>
 <address class="author_afil">
-RStudio<br><h4 class="date">18 September 2023</h4>
+RStudio<br><h4 class="date">19 September 2023</h4>
 
 </div>
 
@@ -2842,6 +2842,25 @@ RStudio<br><h4 class="date">18 September 2023</h4>
 <span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a><span class="fu">library</span>(car)</span>
 <span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a><span class="fu">library</span>(knitr)</span>
 <span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a><span class="fu">library</span>(bookdown)</span></code></pre></div>
+</div>
+<div id="datos" class="section level1">
+<h1>Datos</h1>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">&quot;./datasets/eph_train_2022.csv&quot;</span>, <span class="at">sep=</span><span class="st">&quot;,&quot;</span>, <span class="at">header=</span><span class="cn">TRUE</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="co"># df &lt;- read.table(&quot;TP1/datasets/eph_train_2022.xlsx&quot;)</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">head</span>(df)</span></code></pre></div>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["codusu"],"name":[1],"type":["chr"],"align":["left"]},{"label":["ano4"],"name":[2],"type":["int"],"align":["right"]},{"label":["trimestre"],"name":[3],"type":["int"],"align":["right"]},{"label":["region"],"name":[4],"type":["chr"],"align":["left"]},{"label":["aglomerado"],"name":[5],"type":["int"],"align":["right"]},{"label":["fecha_nacimiento"],"name":[6],"type":["chr"],"align":["left"]},{"label":["edad"],"name":[7],"type":["int"],"align":["right"]},{"label":["asistencia_educacion"],"name":[8],"type":["chr"],"align":["left"]},{"label":["nivel_ed"],"name":[9],"type":["chr"],"align":["left"]},{"label":["tipo_establecimiento"],"name":[10],"type":["chr"],"align":["left"]},{"label":["codigo_actividad"],"name":[11],"type":["int"],"align":["right"]},{"label":["sexo"],"name":[12],"type":["chr"],"align":["left"]},{"label":["categoria_ocupacion"],"name":[13],"type":["chr"],"align":["left"]},{"label":["cat_cantidad_empleos"],"name":[14],"type":["chr"],"align":["left"]},{"label":["alfabetismo"],"name":[15],"type":["chr"],"align":["left"]},{"label":["educacion"],"name":[16],"type":["int"],"align":["right"]},{"label":["experiencia_potencial"],"name":[17],"type":["int"],"align":["right"]},{"label":["salario_horario"],"name":[18],"type":["dbl"],"align":["right"]}],"data":[{"1":"TQRMNOQTQHJOKRCDEHPJB00784929","2":"2022","3":"3","4":"Noroeste","5":"29","6":"28/08/1961","7":"60","8":"asistio","9":"Primaria\\nIncompleta","10":"Privada","11":"3100","12":"Varon","13":"Cuenta propia","14":"unico","15":"Sabe leer y escribir","16":"6","17":"49","18":"214.29","_rn_":"1"},{"1":"TQRMNOPRTHKMLSCDEGJBF00788907","2":"2022","3":"3","4":"Pampeana","5":"13","6":"01/01/1900","7":"60","8":"asistio","9":"Superior\\nUniversitaria\\nIncompleta","10":"Privada","11":"4803","12":"Varon","13":"Cuenta propia","14":"unico","15":"Sabe leer y escribir","16":"15","17":"40","18":"83.33","_rn_":"2"},{"1":"TQRMNOPTWHLLLLCDEGPDJ00707613","2":"2022","3":"3","4":"Noroeste","5":"19","6":"27/01/1982","7":"40","8":"asistio","9":"Secundaria\\nCompleta","10":"Estatal","11":"8600","12":"Mujer","13":"Obrero o empleado","14":"unico","15":"Sabe leer y escribir","16":"13","17":"22","18":"541.67","_rn_":"3"},{"1":"TQRMNOQQYHMOKPCDEGPDJ00712227","2":"2022","3":"3","4":"Noroeste","5":"19","6":"11/11/2000","7":"21","8":"asistio","9":"Secundaria\\nIncompleta","10":"Estatal","11":"8401","12":"Varon","13":"Obrero o empleado","14":"unico","15":"Sabe leer y escribir","16":"12","17":"4","18":"500.00","_rn_":"4"},{"1":"TQRMNOPTSHJMLNCDEGGFB00783042","2":"2022","3":"3","4":"Cuyo","5":"10","6":"16/04/1960","7":"62","8":"asistio","9":"Superior\\nUniversitaria\\nIncompleta","10":"Privada","11":"6100","12":"Varon","13":"Obrero o empleado","14":"unico","15":"Sabe leer y escribir","16":"15","17":"42","18":"619.32","_rn_":"5"},{"1":"TQRMNOSTWHJMKOCDEFJAH00781959","2":"2022","3":"3","4":"Pampeana","5":"3","6":"01/01/1900","7":"20","8":"asistio","9":"Secundaria\\nCompleta","10":"Privada","11":"4803","12":"Varon","13":"Obrero o empleado","14":"unico","15":"Sabe leer y escribir","16":"13","17":"2","18":"229.17","_rn_":"6"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">summary</span>(df)</span></code></pre></div>
+<pre><code>##     codusu               ano4        trimestre    region            aglomerado fecha_nacimiento        edad      asistencia_educacion   nivel_ed         tipo_establecimiento codigo_actividad     sexo           categoria_ocupacion cat_cantidad_empleos alfabetismo          educacion    experiencia_potencial salario_horario
+##  Length:11625       Min.   :2022   Min.   :3   Length:11625       Min.   : 2   Length:11625       Min.   :13.0   Length:11625         Length:11625       Length:11625         Min.   :   1     Length:11625       Length:11625        Length:11625         Length:11625       Min.   : 0.0   Min.   : 0.0          Min.   :   3
+##  Class :character   1st Qu.:2022   1st Qu.:3   Class :character   1st Qu.:12   Class :character   1st Qu.:30.0   Class :character     Class :character   Class :character     1st Qu.:4502     Class :character   Class :character    Class :character     Class :character   1st Qu.:11.0   1st Qu.:12.0          1st Qu.: 266
+##  Mode  :character   Median :2022   Median :3   Mode  :character   Median :22   Mode  :character   Median :40.0   Mode  :character     Mode  :character   Mode  :character     Median :6500     Mode  :character   Mode  :character    Mode  :character     Mode  :character   Median :13.0   Median :22.0          Median : 417
+##                     Mean   :2022   Mean   :3                      Mean   :24                      Mean   :40.8                                                                Mean   :6281                                                                                    Mean   :13.2   Mean   :22.6          Mean   : 522
+##                     3rd Qu.:2022   3rd Qu.:3                      3rd Qu.:31                      3rd Qu.:50.0                                                                3rd Qu.:8501                                                                                    3rd Qu.:16.0   3rd Qu.:32.0          3rd Qu.: 625
+##                     Max.   :2022   Max.   :3                      Max.   :93                      Max.   :93.0                                                                Max.   :9999                                                                                    Max.   :23.0   Max.   :76.0          Max.   :5000</code></pre>
 </div>
 
 

@@ -56,23 +56,37 @@ library(knitr)
 library(bookdown)
 ```
 
-```{r set-options, echo=FALSE, cache=FALSE, include=FALSE, results='hide'}
+```{r set-options, echo=TRUE, cache=FALSE, include=FALSE, results='hide'}
 options(width = 10000)
 options(digits = 4)
 options(nsmall = 0)
 ```
 
-```{r setup, echo=FALSE, include=FALSE, results='hide'}
+```{r setup, echo=TRUE, include=FALSE, results='hide'}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(message = FALSE)
 knitr::opts_chunk$set(warning = FALSE)
 ```
 
+# Datos
 
+```{r}
+df <- read.csv("./datasets/eph_train_2022.csv", sep = ",", header = TRUE)
+```
 
+```{r}
+head(df)
+```
 
+```{r}
+summary(df)
+```
 
+```{r}
+```
 
+```{r}
+```
 
 ```{r include=FALSE, collapse=TRUE, echo=FALSE}
 library(styler)
