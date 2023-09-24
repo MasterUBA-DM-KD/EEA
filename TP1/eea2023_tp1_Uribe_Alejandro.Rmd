@@ -53,7 +53,25 @@ library(dplyr)
 library(patchwork)
 library(car)
 library(knitr)
+library(mltools)
 library(bookdown)
+library(gplots)
+library(tidyr)
+library(GGally)
+library(factoextra)
+library(FactoMineR)
+library(corrplot)
+library(MASS)
+library(reshape2)
+library(reshape)
+library(fastDummies)
+library(e1071)
+library(rsample)
+library(tidyverse)
+library(caret)
+
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(GGally))
 ```
 
 ```{r set-options, echo=TRUE, cache=FALSE, include=FALSE, results='hide'}
@@ -68,21 +86,83 @@ knitr::opts_chunk$set(message = FALSE)
 knitr::opts_chunk$set(warning = FALSE)
 ```
 
-# Datos
+# Análisis exploratorios
+
+## Análisis estructura y correlación
+
+Leer el archivo “eph_train_2022.csv”. ¿Qué puede mencionar sobre su estructura y variables?
 
 ```{r}
-df <- read.csv("./datasets/eph_train_2022.csv", sep = ",", header = TRUE)
+df_train <- read.csv("./TP1/datasets/eph_train_2022.csv", sep = ",", header = TRUE)
 ```
 
 ```{r}
-head(df)
+head(df_train)
 ```
 
 ```{r}
-summary(df)
+lapply(df_train, function(x) {
+  length(which(is.na(x)))
+})
 ```
 
+¿Cómo es la correlación entre las variables numéricas? Utilice y analice en detalle algún gráfico que sirva para sacar conclusiones sobre la asociación de variables realizando apertura por sexo.
+
 ```{r}
+df_numericas <- Filter(is.numeric, df_train)
+df_numericas <- df_numericas[, !(names(df_numericas) %in% c("trimestre", "ano4"))]
+
+head(df_numericas)
+```
+
+
+```{r}
+gpairs_lower <- function(g) {
+  g$plots <- g$plots[-(1:g$nrow)]
+  g$yAxisLabels <- g$yAxisLabels[-1]
+  g$nrow <- g$nrow - 1
+
+  g$plots <- g$plots[-(seq(g$ncol, length(g$plots), by = g$ncol))]
+  g$xAxisLabels <- g$xAxisLabels[-g$ncol]
+  g$ncol <- g$ncol - 1
+  return(g)
+}
+```
+
+
+```{r}
+g <- ggpairs(df_numericas,
+  aes(color = df_train$sexo),
+  columnLabels = gsub("_", " ", colnames(df_numericas), fixed = T),
+  labeller = label_wrap_gen(10),
+  lower = list(continuous = GGally::wrap("points", alpha = 0.8, size = 3)),
+  diag = list(continuous = GGally::wrap("densityDiag", alpha = 0.8, size = 1)),
+  upper = list(continuous = GGally::wrap("cor", size = 5, color = "black")),
+  legend = 1
+) +
+  theme_light() +
+  labs(color = "Sexo") +
+  theme(
+    legend.position = "bottom",
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20),
+    axis.text.y = element_text(size = 11),
+    axis.text.x = element_text(size = 11, angle = 30),
+    strip.text = element_text(size = 18, face = "bold")
+  )
+
+gpairs_lower(g)
+```
+
+En particular, ¿Cómo es la correlación entre la variable a explicar (salario_horario) y el resto de las variables numéricas?
+
+```{r}
+df_numericas %>%
+  cor() %>%
+  as.data.frame() %>%
+  filter(rownames(.) == "salario_horario") %>%
+  pivot_longer(cols = -c("salario_horario"), names_to = "variable", values_to = "correlacion") %>%
+  arrange(desc(correlacion))
 ```
 
 ```{r}
