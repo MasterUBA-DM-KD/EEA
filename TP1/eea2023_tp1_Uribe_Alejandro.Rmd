@@ -90,15 +90,17 @@ knitr::opts_chunk$set(warning = FALSE)
 
 ## Análisis estructura y correlación
 
-Leer el archivo “eph_train_2022.csv”. ¿Qué puede mencionar sobre su estructura y variables?
+Leer el archivo "eph_train_2022.csv". ¿Qué puede mencionar sobre su estructura y variables?
 
 ```{r}
-df_train <- read.csv("./TP1/datasets/eph_train_2022.csv", sep = ",", header = TRUE)
+df_train <- read.csv("./datasets/eph_train_2022.csv", sep = ",", header = TRUE)
 ```
 
 ```{r}
 head(df_train)
 ```
+
+El dataset no cuenta con nulos en sus columnas.
 
 ```{r}
 lapply(df_train, function(x) {
@@ -106,7 +108,11 @@ lapply(df_train, function(x) {
 })
 ```
 
+Se procedió a separar el dataset en dos:
 
+-   \`df_numericas\`: contiene features numéricas
+
+-   \`df_categoricas\`: contiene features categóricas
 
 ```{r}
 df_numericas <- Filter(is.numeric, df_train)
@@ -145,8 +151,7 @@ gpairs_lower <- function(g) {
 }
 ```
 
-
-```{r}
+```{r fig.align="center", echo = FALSE, fig.width = 14, fig.height=14}
 g <- ggpairs(df_numericas,
   aes(color = df_train$sexo),
   columnLabels = gsub("_", " ", colnames(df_numericas), fixed = T),
@@ -171,7 +176,7 @@ g <- ggpairs(df_numericas,
 g
 ```
 
-```{r}
+```{r fig.align="center", echo = FALSE, fig.width = 14, fig.height=14}
 g <- ggpairs(df_categoricas,
   aes(color = df_train$sexo),
   columnLabels = gsub("_", " ", colnames(df_categoricas), fixed = TRUE),
@@ -210,11 +215,6 @@ corrplot(m_cor,
   title = "Correlación Variables - Sleep Health and Lifestyle"
 )
 ```
-
-
-
-
-
 
 ```{r include=FALSE, collapse=TRUE, echo=FALSE}
 library(styler)
