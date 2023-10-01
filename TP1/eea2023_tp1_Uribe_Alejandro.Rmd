@@ -216,6 +216,82 @@ corrplot(m_cor,
 )
 ```
 
+## Modelos
+
+Un modelo clásico del salario es la llamada ecuación de Mincer. Existen varias especificaciones pero la más
+típica es:
+
+```{{=latex}}
+\begin{tabular}{ll}
+A & B \\
+A & B \\
+\end{tabular}
+```
+
+E [ln(salario)] = β0 + β1AñosEducacion + β2ExperienciaLaboral + β3ExperienciaLaboral2
+
+En los siguientes consignas la idea es ir aproximandose a esta lógica de modelado
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
 ```{r include=FALSE, collapse=TRUE, echo=FALSE}
 library(styler)
 styler::style_file("TP1/eea2023_tp1_Uribe_Alejandro.Rmd")
