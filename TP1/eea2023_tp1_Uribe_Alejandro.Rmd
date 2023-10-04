@@ -1,15 +1,13 @@
 ---
 title: "Trabajo Práctico 1: Regresión lineal"
-subtitle: "Enfoque Estadístico del Aprendizaje"
+subtitle: ""
 author:
-  - name: "Alejandro Uribe"
-    url: https://github.com/jjallaire
-    affiliation: RStudio
-    affiliation_url: https://www.rstudio.com
+  - name: Alejandro Uribe
+    url: https://github.com/UribeAlejandro
+    affiliation: Enfoque Estadístico del Aprendizaje - Buenos Aires Argentina
 date: "`r format(Sys.time(), '%d %B %Y')`"
-lang: en
-description: |
-  Asignatura: Enfoque Estadístico del Aprendizaje
+lang: es
+description: "Asignatura: Enfoque Estadístico del Aprendizaje - Buenos Aires Argentina"
 output:
   html_document:
     page-layout: full
@@ -69,6 +67,7 @@ library(e1071)
 library(rsample)
 library(tidyverse)
 library(caret)
+library(styler)
 
 suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(GGally))
@@ -84,23 +83,71 @@ options(nsmall = 0)
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(message = FALSE)
 knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(tidy="styler")
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60), tidy = TRUE)
 ```
+
+# Datos
+
+Los datos con los que se trabajará en este TP provienen de la Encuesta Permanente de Hogares (EPH)
+provistos por el Instituto de Estadísticas y Censos (INDEC) de la República Argentina. [Link a los datos](<https://www.indec.gob.ar/indec/web/Institucional-Indec-BasesDeDatos>) **.**
+
+La EPH es una encuesta muestral que permite conocer las características sociodemográficas y socioeconómicas. Recomendamos leer brevemente el [informe](<https://www.indec.gob.ar/uploads/informesdeprensa/eph_total_urbano_02_23FECDE7B871.pdf>)para los datos que se van a utilizar en el trabajo, donde podrán encontrar análisis descriptivos y el diccionario de variables
+
+Los datasets que se comparten corresponden a un recorte del dataset original luego de un preprocesamiento específico para las consignas de este trabajo.
+
+Las variables incluidas son:
+
+-   **codusu**: ID de la observación
+
+-   **ano4** : Año de relevamiento
+
+-   **trimestre** : Trimestre de relevamiento
+
+-   **region**: región de residencia
+
+-   **aglomerado**: aglomerado urbano de residencia
+
+-   **fecha_nacimiento**: Fecha de nacimiento
+
+-   **edad**: Años cumplidos
+
+-   **asistencia_educacion**: ¿Asiste o asistió a algún establecimiento educativo?
+
+-   **nivel_ed**: Nivel educativo en que se encuentra la persona
+
+-   **tipo_establecimiento**: ¿El negocio / empresa / institución / actividad en la que trabaja es público o privado?
+
+-   **codigo_actividad**: Código de actividad económica (Clasificador de Actividades Económicas para Encuestas Sociodemográficas del Mercosur)
+
+-   **sexo**: Sexo (binario)
+
+-   **categoria_ocupacion**: Categoría ocupacional
+
+-   **cat_cantidad_empleos**: ¿La semana pasada tenía 1 o tenía múltiples empleos?
+
+-   **alfabetismo**: ¿Sabe leer y escribir?
+
+-   **educacion**: Años de educación estimados
+
+-   **experiencia_potencial**: Estimación de la experiencia laboral, calculada a partir de la diferencia entre la edad y una estimación de los años de educación
+
+-   **salario_horario**: ingreso por hora trabajada en el mes (de la ocupación principal y ocupaciones secundarias)
+
+El diccionario de todas las variables que forman parte de la base de datos cruda se encuentra en el siguiente [documento](<https://www.indec.gob.ar/ftp/cuadros/menusuperior/eph/EPH_registro_3T2022.pdf>)
 
 # Análisis exploratorios
 
 ## Análisis estructura y correlación
 
-Leer el archivo "eph_train_2022.csv". ¿Qué puede mencionar sobre su estructura y variables?
+Leer el archivo `eph_train_2022.csv`. ¿Qué puede mencionar sobre su estructura y variables?
 
 ```{r}
 df_train <- read.csv("./datasets/eph_train_2022.csv", sep = ",", header = TRUE)
-```
-
-```{r}
 head(df_train)
 ```
 
-El dataset no cuenta con nulos en sus columnas.
+El dataset de entrenamiento no cuenta con nulos en sus columnas.
 
 ```{r}
 lapply(df_train, function(x) {
@@ -108,11 +155,11 @@ lapply(df_train, function(x) {
 })
 ```
 
-Se procedió a separar el dataset en dos:
+Se separó el dataset en dos, de acuerdo al tipo de la columna:
 
--   \`df_numericas\`: contiene features numéricas
+-   `df_numericas`: contiene atributos numéricos
 
--   \`df_categoricas\`: contiene features categóricas
+-   `df_categoricas`: contiene atributos categóricos
 
 ```{r}
 df_numericas <- Filter(is.numeric, df_train)
@@ -123,7 +170,11 @@ df_categoricas <- df_categoricas[, !(names(df_categoricas) %in% c("codusu", "fec
 ```
 
 ```{r}
-head(df_categoricas)
+head(df_numericas, 2)
+```
+
+```{r}
+head(df_categoricas, 2)
 ```
 
 ```{r}
@@ -216,83 +267,100 @@ corrplot(m_cor,
 )
 ```
 
-## Modelos
+# **Modelos**
 
-Un modelo clásico del salario es la llamada ecuación de Mincer. Existen varias especificaciones pero la más
-típica es:
+Un modelo clásico del salario es la llamada ecuación de Mincer. Existen varias especificaciones pero la más típica es:
 
-```{{=latex}}
-\begin{tabular}{ll}
-A & B \\
-A & B \\
-\end{tabular}
-```
-
-E [ln(salario)] = β0 + β1AñosEducacion + β2ExperienciaLaboral + β3ExperienciaLaboral2
+$$
+E[ln(salario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaLaboral + \beta_3 \cdot ExperienciaLaboral^2
+$$
 
 En los siguientes consignas la idea es ir aproximandose a esta lógica de modelado
 
+## Modelos lineales experiencia
+
+Se va a comenzar con dos modelos lineales que utilicen la información de la experiencia potencial.
+
+Primero, ajustar un modelo de regresión para explicar el salario por hora usando únicamente la experiencia potencial como covariable.$$
+E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial
+$$Luego, ajustar otro modelo en donde las únicas covariables sean la experiencia potencial y el cuadrado de la experiencia potencial.
+
+$$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 $$Responder las siguientes preguntas en base a ambos modelos:
+
+¿Cuál es el impacto de un año adicional de experiencia potencial en el salario horario esperado para cada uno de estos modelos?
+
+
+¿Cuál es el efecto sobre el salario horario esperado de un año más de experiencia laboral para una persona
+con 6 años de experiencia laboral? ¿Y para una persona con 35 años de experiencia laboral?
+
+## Modelo lineal múltiple
+
+Se plantea un primer modelo múltiple a partir de la ecuación de Mincer:
+
+$$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 + \beta_3 \cdot Sexo + \beta_4 \cdot Sexo \cdot AñosEducación $$
+
+Ajustar el modelo planteado y responder las siguientes preguntas: ¿Cuál es la interpretación de las variables incluidas en el modelo? ¿Sus coeficientes son significativos? ¿El modelo resulta significativo para explicar el salario? ¿Qué porcentaje de la variabilidad explica el modelo?
+Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo
+
+## Modelo de Mincer "enriquecido"
+
+Ahora, se procede a modelar según una especicación del modelo de Mincer con ciertas variables adicionales\
+$$ E[ln(SalarioHorario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 + \beta_3 \cdot Sexo + \beta_4 \cdot Sexo \cdot AñosEducación $$
+
+-   ¿Cuál es la interpretación del coeficiente asociado a la variable de años de educación? ¿Se observan
+    cambios en la significatividad individual de los coeficientes respecto al modelo anterior?
+
+```{=html}
+<!-- -->
+```
+-   ¿Qué porcentaje de la variabilidad del salario horario explica el modelo? ¿Cómo se compara con la
+    variabilidad explicada por el modelo anterior?\
+    *Nota:* tenga en cuenta que la variable predicha es el logaritmo del salario horario y se pide el porcentaje de variabilidad explicada del salario horario. Además, como los dos modelos tienen la misma cantidad de covariables es posible compararlos mediante el el R-cuadrado simple
+
+-   Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo y comparar con el análisis del modelo anterior
+
+## Modelos propios y evaluación
+
+Realizar 2 modelos lineales múltiples adicionales y explicar la lógica detrás de los mismos (se valorará la creación y/o inclusión de variables nuevas).
+
+*Nota:* No se pueden utilizar métodos de selección automática de variables dado que buscamos que analicen otras variables y realicen feature engineering.
+
+Evaluar y comparar la performance del **modelo lineal multiple**, el **modelo de mincer** y los modelos
+desarrollados en este punto en el dataset de entrenamiento y evaluación (usar dataset `eph_test_2022.csv`). La evaluación de performance consiste en comparar la performance en términos del RMSE y MAE sobre el set de entrenamiento y el set de evaluación.
+
+¿Cuál es el mejor modelo para el objetivo de predecir el salario horario? ¿Por qué?
+
+## Modelo lineal robusto
+
+Leer el archivo `eph_train_outliers_2022.csv`. Este último consiste en el dataset original de train con la incorporación de algunas observaciones adicionales que pueden incluir valores atípicos.
+
+```{r}
+df_outliers <- read.csv("./datasets/eph_train_outliers_2022.csv", sep = ",", header = TRUE)
+head(df_outliers, 2)
+```
+
+Realizar dos gráficos del salario horario, uno para el dataset de entrenamiento sin outliers y otro para el
+dataset con outliers que permitan observar claramente la diferencia entre ambos sets de datos.
+
 ```{r}
 
 ```
 
-```{r}
-
-```
-
-```{r}
-
-```
+Sobre este nuevo conjunto de datos entrenar el **modelo lineal multiple**, el **modelo de mincer** y un
+**modelo robusto** (misma especificación que el modelo lineal multiple). Comparar exhaustivamente los
+coeficientes estimados y su significatividad entre el **modelo lineal multiple** y el **modelo robusto**.
 
 ```{r}
 
 ```
 
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```
+Comparar la performance (RMSE y MAE) de los tres modelos entrenados en este punto en el dataset de
+entrenamiento (con outliers) y de evaluación ¿Qué puede concluir al respecto?
 
 ```{r}
 
 ```
 
 ```{r include=FALSE, collapse=TRUE, echo=FALSE}
-library(styler)
 styler::style_file("TP1/eea2023_tp1_Uribe_Alejandro.Rmd")
 ```
