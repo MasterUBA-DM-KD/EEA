@@ -74,25 +74,24 @@ suppressPackageStartupMessages(library(GGally))
 ```
 
 ```{r set-options, echo=TRUE, cache=FALSE, include=FALSE, results='hide'}
-options(width = 10000)
 options(digits = 4)
 options(nsmall = 0)
+options(width = 10000)
 ```
 
 ```{r setup, echo=TRUE, include=FALSE, results='hide'}
+knitr::opts_chunk$set(tidy="styler")
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(message = FALSE)
 knitr::opts_chunk$set(warning = FALSE)
-knitr::opts_chunk$set(tidy="styler")
 knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60), tidy = TRUE)
 ```
 
 # Datos
 
-Los datos con los que se trabajará en este TP provienen de la Encuesta Permanente de Hogares (EPH)
-provistos por el Instituto de Estadísticas y Censos (INDEC) de la República Argentina. [Link a los datos](<https://www.indec.gob.ar/indec/web/Institucional-Indec-BasesDeDatos>) **.**
+Los datos con los que se trabajará en este TP provienen de la Encuesta Permanente de Hogares (EPH) provistos por el Instituto de Estadísticas y Censos (INDEC) de la República Argentina. [Link a los datos](https://www.indec.gob.ar/indec/web/Institucional-Indec-BasesDeDatos) **.**
 
-La EPH es una encuesta muestral que permite conocer las características sociodemográficas y socioeconómicas. Recomendamos leer brevemente el [informe](<https://www.indec.gob.ar/uploads/informesdeprensa/eph_total_urbano_02_23FECDE7B871.pdf>)para los datos que se van a utilizar en el trabajo, donde podrán encontrar análisis descriptivos y el diccionario de variables
+La EPH es una encuesta muestral que permite conocer las características sociodemográficas y socioeconómicas. Recomendamos leer brevemente el [informe](https://www.indec.gob.ar/uploads/informesdeprensa/eph_total_urbano_02_23FECDE7B871.pdf)para los datos que se van a utilizar en el trabajo, donde podrán encontrar análisis descriptivos y el diccionario de variables
 
 Los datasets que se comparten corresponden a un recorte del dataset original luego de un preprocesamiento específico para las consignas de este trabajo.
 
@@ -134,7 +133,7 @@ Las variables incluidas son:
 
 -   **salario_horario**: ingreso por hora trabajada en el mes (de la ocupación principal y ocupaciones secundarias)
 
-El diccionario de todas las variables que forman parte de la base de datos cruda se encuentra en el siguiente [documento](<https://www.indec.gob.ar/ftp/cuadros/menusuperior/eph/EPH_registro_3T2022.pdf>)
+El diccionario de todas las variables que forman parte de la base de datos cruda se encuentra en el siguiente [documento](https://www.indec.gob.ar/ftp/cuadros/menusuperior/eph/EPH_registro_3T2022.pdf)
 
 # Análisis exploratorios
 
@@ -155,6 +154,13 @@ lapply(df_train, function(x) {
 })
 ```
 
+Se removieron las columnas `trimestre`, `codusu`, `fecha_nacimiento` y `ano4` ya que [...]
+
+```{r}
+col_eliminar <- c("trimestre", "codusu", "fecha_nacimiento", "ano4")
+df_train <- df_train[, !(names(df_train) %in% col_eliminar)]
+```
+
 Se separó el dataset en dos, de acuerdo al tipo de la columna:
 
 -   `df_numericas`: contiene atributos numéricos
@@ -164,9 +170,6 @@ Se separó el dataset en dos, de acuerdo al tipo de la columna:
 ```{r}
 df_numericas <- Filter(is.numeric, df_train)
 df_categoricas <- df_train[,!(names(df_train) %in% names(df_numericas))]
-df_numericas <- df_numericas[, !(names(df_numericas) %in% c("trimestre", "ano4"))]
-
-df_categoricas <- df_categoricas[, !(names(df_categoricas) %in% c("codusu", "fecha_nacimiento", "sexo"))]
 ```
 
 ```{r}
@@ -178,7 +181,9 @@ head(df_categoricas, 2)
 ```
 
 ```{r}
-data_long <- melt(df_train)
+data_long <- df_numericas
+data_long$sexo <- df_train$sexo
+data_long <- melt(data_long, id="sexo")
 ggplot(
   data_long,
   aes(x = variable, y = value, fill = sexo)
@@ -189,20 +194,7 @@ ggplot(
 
 ¿Cómo es la correlación entre las variables numéricas? Utilice y analice en detalle algún gráfico que sirva para sacar conclusiones sobre la asociación de variables realizando apertura por sexo.
 
-```{r}
-gpairs_lower <- function(g) {
-  g$plots <- g$plots[-(1:g$nrow)]
-  g$yAxisLabels <- g$yAxisLabels[-1]
-  g$nrow <- g$nrow - 1
-
-  g$plots <- g$plots[-(seq(g$ncol, length(g$plots), by = g$ncol))]
-  g$xAxisLabels <- g$xAxisLabels[-g$ncol]
-  g$ncol <- g$ncol - 1
-  return(g)
-}
-```
-
-```{r fig.align="center", echo = FALSE, fig.width = 14, fig.height=14}
+```{r fig.align="center", echo = FALSE, fig.width = 14, fig.height = 14}
 g <- ggpairs(df_numericas,
   aes(color = df_train$sexo),
   columnLabels = gsub("_", " ", colnames(df_numericas), fixed = T),
@@ -213,17 +205,15 @@ g <- ggpairs(df_numericas,
   legend = 1
 ) +
   theme_light() +
-  labs(color = "Sexo") +
+  labs(fill="Sexo") +
   theme(
     legend.position = "bottom",
     legend.text = element_text(size = 18),
     legend.title = element_text(size = 20),
-    axis.text.y = element_text(size = 9),
-    axis.text.x = element_text(size = 9, angle = 30),
+    axis.text.y = element_text(size = 15),
+    axis.text.x = element_text(size = 15, angle = 30),
     strip.text = element_text(size = 18, face = "bold")
   )
-
-# gpairs_lower(g)
 g
 ```
 
@@ -238,16 +228,15 @@ g <- ggpairs(df_categoricas,
   legend = 1
 ) +
   theme_light() +
-  labs(color = "Sexo") +
+  labs(fill="Sexo") +
   theme(
     legend.position = "bottom",
     legend.text = element_text(size = 18),
     legend.title = element_text(size = 20),
-    axis.text.y = element_text(size = 9),
-    axis.text.x = element_text(size = 9, angle = 90,vjust=0.5, hjust=1),
+    axis.text.y = element_text(size = 15),
+    axis.text.x = element_text(size = 15, angle = 90),
     strip.text = element_text(size = 18, face = "bold")
   )
-
 g
 ```
 
@@ -289,9 +278,7 @@ $$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial + \beta_2 \c
 
 ¿Cuál es el impacto de un año adicional de experiencia potencial en el salario horario esperado para cada uno de estos modelos?
 
-
-¿Cuál es el efecto sobre el salario horario esperado de un año más de experiencia laboral para una persona
-con 6 años de experiencia laboral? ¿Y para una persona con 35 años de experiencia laboral?
+¿Cuál es el efecto sobre el salario horario esperado de un año más de experiencia laboral para una persona con 6 años de experiencia laboral? ¿Y para una persona con 35 años de experiencia laboral?
 
 ## Modelo lineal múltiple
 
@@ -299,24 +286,16 @@ Se plantea un primer modelo múltiple a partir de la ecuación de Mincer:
 
 $$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 + \beta_3 \cdot Sexo + \beta_4 \cdot Sexo \cdot AñosEducación $$
 
-Ajustar el modelo planteado y responder las siguientes preguntas: ¿Cuál es la interpretación de las variables incluidas en el modelo? ¿Sus coeficientes son significativos? ¿El modelo resulta significativo para explicar el salario? ¿Qué porcentaje de la variabilidad explica el modelo?
-Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo
+Ajustar el modelo planteado y responder las siguientes preguntas: ¿Cuál es la interpretación de las variables incluidas en el modelo? ¿Sus coeficientes son significativos? ¿El modelo resulta significativo para explicar el salario? ¿Qué porcentaje de la variabilidad explica el modelo? Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo
 
 ## Modelo de Mincer "enriquecido"
 
 Ahora, se procede a modelar según una especicación del modelo de Mincer con ciertas variables adicionales\
 $$ E[ln(SalarioHorario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 + \beta_3 \cdot Sexo + \beta_4 \cdot Sexo \cdot AñosEducación $$
 
--   ¿Cuál es la interpretación del coeficiente asociado a la variable de años de educación? ¿Se observan
-    cambios en la significatividad individual de los coeficientes respecto al modelo anterior?
-
-```{=html}
-<!-- -->
-```
--   ¿Qué porcentaje de la variabilidad del salario horario explica el modelo? ¿Cómo se compara con la
-    variabilidad explicada por el modelo anterior?\
+-   ¿Cuál es la interpretación del coeficiente asociado a la variable de años de educación? ¿Se observan cambios en la significatividad individual de los coeficientes respecto al modelo anterior?
+-   ¿Qué porcentaje de la variabilidad del salario horario explica el modelo? ¿Cómo se compara con la variabilidad explicada por el modelo anterior?\
     *Nota:* tenga en cuenta que la variable predicha es el logaritmo del salario horario y se pide el porcentaje de variabilidad explicada del salario horario. Además, como los dos modelos tienen la misma cantidad de covariables es posible compararlos mediante el el R-cuadrado simple
-
 -   Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo y comparar con el análisis del modelo anterior
 
 ## Modelos propios y evaluación
@@ -325,8 +304,12 @@ Realizar 2 modelos lineales múltiples adicionales y explicar la lógica detra
 
 *Nota:* No se pueden utilizar métodos de selección automática de variables dado que buscamos que analicen otras variables y realicen feature engineering.
 
-Evaluar y comparar la performance del **modelo lineal multiple**, el **modelo de mincer** y los modelos
-desarrollados en este punto en el dataset de entrenamiento y evaluación (usar dataset `eph_test_2022.csv`). La evaluación de performance consiste en comparar la performance en términos del RMSE y MAE sobre el set de entrenamiento y el set de evaluación.
+Evaluar y comparar la performance del **modelo lineal multiple**, el **modelo de mincer** y los modelos desarrollados en este punto en el dataset de entrenamiento y evaluación (usar dataset `eph_test_2022.csv`). La evaluación de performance consiste en comparar la performance en términos del RMSE y MAE sobre el set de entrenamiento y el set de evaluación.
+
+```{r}
+df_test <- read.csv("./datasets/eph_test_2022.csv", sep = ",", header = TRUE)
+head(df_test, 2)
+```
 
 ¿Cuál es el mejor modelo para el objetivo de predecir el salario horario? ¿Por qué?
 
@@ -339,23 +322,19 @@ df_outliers <- read.csv("./datasets/eph_train_outliers_2022.csv", sep = ",", hea
 head(df_outliers, 2)
 ```
 
-Realizar dos gráficos del salario horario, uno para el dataset de entrenamiento sin outliers y otro para el
-dataset con outliers que permitan observar claramente la diferencia entre ambos sets de datos.
+Realizar dos gráficos del salario horario, uno para el dataset de entrenamiento sin outliers y otro para el dataset con outliers que permitan observar claramente la diferencia entre ambos sets de datos.
 
 ```{r}
 
 ```
 
-Sobre este nuevo conjunto de datos entrenar el **modelo lineal multiple**, el **modelo de mincer** y un
-**modelo robusto** (misma especificación que el modelo lineal multiple). Comparar exhaustivamente los
-coeficientes estimados y su significatividad entre el **modelo lineal multiple** y el **modelo robusto**.
+Sobre este nuevo conjunto de datos entrenar el **modelo lineal multiple**, el **modelo de mincer** y un **modelo robusto** (misma especificación que el modelo lineal multiple). Comparar exhaustivamente los coeficientes estimados y su significatividad entre el **modelo lineal multiple** y el **modelo robusto**.
 
 ```{r}
 
 ```
 
-Comparar la performance (RMSE y MAE) de los tres modelos entrenados en este punto en el dataset de
-entrenamiento (con outliers) y de evaluación ¿Qué puede concluir al respecto?
+Comparar la performance (RMSE y MAE) de los tres modelos entrenados en este punto en el dataset de entrenamiento (con outliers) y de evaluación ¿Qué puede concluir al respecto?
 
 ```{r}
 
