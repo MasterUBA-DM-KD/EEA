@@ -149,16 +149,21 @@ head(df_train)
 El dataset de entrenamiento no cuenta con nulos en sus columnas.
 
 ```{r}
-lapply(df_train, function(x) {
-  length(which(is.na(x)))
-})
+faltantes_train <-  df_train %>%
+  gather(., key = "variables", value = "valores") %>%
+  group_by(variables) %>%
+  summarise(valores_unicos = n_distinct(valores),
+  porcentaje_faltantes = sum(is.na(valores))/nrow(df_train)*100) %>%
+  arrange(desc(porcentaje_faltantes), valores_unicos)
+
+faltantes_train
 ```
 
 Se removieron las columnas `trimestre`, `codusu`, `fecha_nacimiento` y `ano4` ya que [...]
 
 ```{r}
-col_eliminar <- c("trimestre", "codusu", "fecha_nacimiento", "ano4")
-df_train <- df_train[, !(names(df_train) %in% col_eliminar)]
+df_train <- df_train %>%
+  dplyr::select(-trimestre, -codusu, -fecha_nacimiento, -ano4)
 ```
 
 Se separó el dataset en dos, de acuerdo al tipo de la columna:
@@ -180,21 +185,9 @@ head(df_numericas, 2)
 head(df_categoricas, 2)
 ```
 
-```{r}
-data_long <- df_numericas
-data_long$sexo <- df_train$sexo
-data_long <- melt(data_long, id="sexo")
-ggplot(
-  data_long,
-  aes(x = variable, y = value, fill = sexo)
-) +
-  geom_boxplot() +
-  facet_wrap(~variable, scale = "free")
-```
-
 ¿Cómo es la correlación entre las variables numéricas? Utilice y analice en detalle algún gráfico que sirva para sacar conclusiones sobre la asociación de variables realizando apertura por sexo.
 
-```{r fig.align="center", echo = FALSE, fig.width = 14, fig.height = 14}
+```{r fig.align="center", fig.width = 14, fig.height = 14}
 g <- ggpairs(df_numericas,
   aes(color = df_train$sexo),
   columnLabels = gsub("_", " ", colnames(df_numericas), fixed = T),
@@ -211,50 +204,26 @@ g <- ggpairs(df_numericas,
     legend.text = element_text(size = 18),
     legend.title = element_text(size = 20),
     axis.text.y = element_text(size = 15),
-    axis.text.x = element_text(size = 15, angle = 30),
-    strip.text = element_text(size = 18, face = "bold")
-  )
-g
-```
-
-```{r fig.align="center", echo = FALSE, fig.width = 14, fig.height=14}
-g <- ggpairs(df_categoricas,
-  aes(color = df_train$sexo),
-  columnLabels = gsub("_", " ", colnames(df_categoricas), fixed = TRUE),
-  labeller = label_wrap_gen(10),
-  lower = list(discrete = GGally::wrap("count", alpha = 0.5, size = 3)),
-  diag = list(discrete = GGally::wrap("barDiag", alpha = 0.5, size = 1)),
-  upper = list(discrete = GGally::wrap("count", alpha = 0.5, size=1)),
-  legend = 1
-) +
-  theme_light() +
-  labs(fill="Sexo") +
-  theme(
-    legend.position = "bottom",
-    legend.text = element_text(size = 18),
-    legend.title = element_text(size = 20),
-    axis.text.y = element_text(size = 15),
     axis.text.x = element_text(size = 15, angle = 90),
     strip.text = element_text(size = 18, face = "bold")
   )
 g
 ```
 
-En particular, ¿Cómo es la correlación entre la variable a explicar (salario_horario) y el resto de las variables numéricas?
+Respecto a la variable a explicar (`salario_horario`) y las demás variables numéricas se observó:
+
+-
+
+En particular, ¿Cómo es la correlación entre la variable a explicar (`salario_horario`) y el resto de las variables numéricas?
 
 ```{r}
-m_cor <- cor(df_numericas)
-corrplot(m_cor,
-  method = "ellipse",
-  type = "upper",
-  diag = FALSE,
-  tl.col = "black",
-  cl.ratio = 0.3,
-  tl.srt = 45,
-  mar = c(0, 0, 1, 0),
-  title = "Correlación Variables - Sleep Health and Lifestyle"
-)
+data_cor <- cor(df_numericas[, colnames(df_numericas) != "salario_horario"], df_numericas$salario_horario)
+data_cor <- data.frame(data_cor)
+names(data_cor) <- c("corr")
+data_cor %>% arrange(desc(corr))
 ```
+
+La variable `educación` es aquella que se encuentra más relacionada con la variable a explicar (`salario_horario`).
 
 # **Modelos**
 
@@ -264,17 +233,49 @@ $$
 E[ln(salario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaLaboral + \beta_3 \cdot ExperienciaLaboral^2
 $$
 
+```{r}
+names(df_train)
+```
+
+```{r}
+modelo <- lm(
+  formula = log(salario_horario) ~ educacion + experiencia_potencial + I(experiencia_potencial^2),
+  data = df_train)
+```
+
+```{r}
+modelo
+```
+
 En los siguientes consignas la idea es ir aproximandose a esta lógica de modelado
 
 ## Modelos lineales experiencia
 
 Se va a comenzar con dos modelos lineales que utilicen la información de la experiencia potencial.
 
-Primero, ajustar un modelo de regresión para explicar el salario por hora usando únicamente la experiencia potencial como covariable.$$
+Primero, ajustar un modelo de regresión para explicar el salario por hora usando únicamente la `experiencia_potencial` como covariable.$$
 E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial
-$$Luego, ajustar otro modelo en donde las únicas covariables sean la experiencia potencial y el cuadrado de la experiencia potencial.
+$$
 
-$$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 $$Responder las siguientes preguntas en base a ambos modelos:
+```{r}
+modelo <- lm(
+  formula = salario_horario ~ educacion + experiencia_potencial,
+  data = df_train)
+modelo
+```
+
+Luego, ajustar otro modelo en donde las únicas covariables sean la `experiencia_potencial` y el cuadrado de la `experiencia_potencial`.
+
+$$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 $$
+
+```{r}
+modelo <- lm(
+  formula = salario_horario ~ educacion + experiencia_potencial + I(experiencia_potencial^2),
+  data = df_train)
+modelo
+```
+
+Responder las siguientes preguntas en base a ambos modelos:
 
 ¿Cuál es el impacto de un año adicional de experiencia potencial en el salario horario esperado para cada uno de estos modelos?
 
@@ -284,14 +285,36 @@ $$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial + \beta_2 \c
 
 Se plantea un primer modelo múltiple a partir de la ecuación de Mincer:
 
-$$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 + \beta_3 \cdot Sexo + \beta_4 \cdot Sexo \cdot AñosEducación $$
+$$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_3 \cdot ExperienciaPotencial^2 + \beta_4 \cdot Sexo + \beta_5 \cdot Sexo \cdot AñosEducación $$
 
-Ajustar el modelo planteado y responder las siguientes preguntas: ¿Cuál es la interpretación de las variables incluidas en el modelo? ¿Sus coeficientes son significativos? ¿El modelo resulta significativo para explicar el salario? ¿Qué porcentaje de la variabilidad explica el modelo? Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo
+```{r}
+modelo <- lm(
+  formula = salario_horario ~ educacion + experiencia_potencial + I(experiencia_potencial^2) + sexo + sexo*educacion,
+  data = df_train)
+modelo
+```
+
+Ajustar el modelo planteado y responder las siguientes preguntas:
+
+¿Cuál es la interpretación de las variables incluidas en el modelo? ¿Sus coeficientes son significativos?
+
+¿El modelo resulta significativo para explicar el salario?
+
+¿Qué porcentaje de la variabilidad explica el modelo?
+
+Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo
 
 ## Modelo de Mincer "enriquecido"
 
 Ahora, se procede a modelar según una especicación del modelo de Mincer con ciertas variables adicionales\
 $$ E[ln(SalarioHorario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 + \beta_3 \cdot Sexo + \beta_4 \cdot Sexo \cdot AñosEducación $$
+
+```{r}
+modelo <- lm(
+  formula = log(salario_horario) ~ educacion + experiencia_potencial + I(experiencia_potencial^2) + sexo + sexo*educacion,
+  data = df_train)
+modelo
+```
 
 -   ¿Cuál es la interpretación del coeficiente asociado a la variable de años de educación? ¿Se observan cambios en la significatividad individual de los coeficientes respecto al modelo anterior?
 -   ¿Qué porcentaje de la variabilidad del salario horario explica el modelo? ¿Cómo se compara con la variabilidad explicada por el modelo anterior?\
@@ -304,7 +327,11 @@ Realizar 2 modelos lineales múltiples adicionales y explicar la lógica detra
 
 *Nota:* No se pueden utilizar métodos de selección automática de variables dado que buscamos que analicen otras variables y realicen feature engineering.
 
-Evaluar y comparar la performance del **modelo lineal multiple**, el **modelo de mincer** y los modelos desarrollados en este punto en el dataset de entrenamiento y evaluación (usar dataset `eph_test_2022.csv`). La evaluación de performance consiste en comparar la performance en términos del RMSE y MAE sobre el set de entrenamiento y el set de evaluación.
+```{r}
+
+```
+
+Evaluar y comparar la performance del **modelo lineal multiple**, el **modelo de Mincer** y los modelos desarrollados en este punto en el dataset de entrenamiento y evaluación (usar dataset `eph_test_2022.csv`). La evaluación de performance consiste en comparar la performance en términos del RMSE y MAE sobre el set de entrenamiento y el set de evaluación.
 
 ```{r}
 df_test <- read.csv("./datasets/eph_test_2022.csv", sep = ",", header = TRUE)
