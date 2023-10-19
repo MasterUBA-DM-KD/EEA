@@ -51,6 +51,7 @@ library(GGally)
 library(moments)
 library(ggplot2)
 library(tidyverse)
+library(rgl)
 
 suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(GGally))
@@ -63,10 +64,11 @@ options(width = 10000)
 ```
 
 ```{r setup, echo=TRUE, include=FALSE, results='hide'}
-knitr::opts_chunk$set(tidy="styler")
+knitr::opts_chunk$set(tidy = "styler")
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(message = FALSE)
 knitr::opts_chunk$set(warning = FALSE)
+knitr::knit_hooks$set(webgl = hook_webgl)
 knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60), tidy = TRUE)
 ```
 
@@ -125,9 +127,9 @@ El diccionario de todas las variables que forman parte de la base de datos cruda
 > Leer el archivo `eph_train_2022.csv`. ¿Qué puede mencionar sobre su estructura y variables?
 
 ```{r}
-df_train <- read_csv("./datasets/eph_train_2022.csv") %>%
-  mutate_at(c('codusu', 'ano4', 'aglomerado', 'trimestre', 'codigo_actividad'), as.factor) %>%
-  mutate(fecha_nacimiento= as.Date(fecha_nacimiento, format='%d/%m/%Y'))
+df_train <- read_csv("datasets/eph_train_2022.csv") %>%
+  mutate_at(c("codusu", "ano4", "aglomerado", "trimestre", "codigo_actividad", "sexo"), as.factor) %>%
+  mutate(fecha_nacimiento = as.Date(fecha_nacimiento, format = "%d/%m/%Y"))
 ```
 
 Se muestra una porción del dataset de entrenamiento
@@ -139,11 +141,13 @@ head(df_train)
 El dataset de entrenamiento no cuenta con nulos en sus columnas.
 
 ```{r}
-faltantes_train <-  df_train %>%
+faltantes_train <- df_train %>%
   gather(., key = "variables", value = "valores") %>%
   group_by(variables) %>%
-  summarise(valores_unicos = n_distinct(valores),
-  porcentaje_faltantes = sum(is.na(valores))/nrow(df_train)*100) %>%
+  summarise(
+    valores_unicos = n_distinct(valores),
+    porcentaje_faltantes = sum(is.na(valores)) / nrow(df_train) * 100
+  ) %>%
   arrange(desc(porcentaje_faltantes), desc(valores_unicos))
 faltantes_train
 ```
@@ -163,7 +167,7 @@ Se separó el dataset en dos, de acuerdo al tipo de la columna:
 
 ```{r}
 df_numericas <- Filter(is.numeric, df_train)
-df_categoricas <- df_train[,!(names(df_train) %in% names(df_numericas))]
+df_categoricas <- df_train[, !(names(df_train) %in% names(df_numericas))]
 ```
 
 ```{r}
@@ -188,7 +192,7 @@ g <- ggpairs(
   legend = 1
 ) +
   theme_light() +
-  labs(fill="Sexo binario") +
+  labs(fill = "Sexo binario") +
   theme(
     legend.position = "bottom",
     legend.text = element_text(size = 18),
@@ -213,7 +217,8 @@ Cabe resaltar de las variables numéricas:
 ```{r}
 data_cor <- cor(
   df_numericas[, colnames(df_numericas) != "salario_horario"],
-  df_numericas$salario_horario, method = "pearson"
+  df_numericas$salario_horario,
+  method = "pearson"
 )
 data_cor <- data.frame(data_cor)
 names(data_cor) <- c("corr")
@@ -228,15 +233,16 @@ summary(df_train$salario_horario)
 
 ```{r}
 g <- ggplot(
-    df_train,
-    aes(x=sexo, y=salario_horario, fill=sexo)
-    ) +
+  df_train,
+  aes(x = sexo, y = salario_horario, fill = sexo)
+) +
   geom_boxplot(alpha = 0.5) +
   theme_classic() +
-  labs(title="Salario por Sexo binario",
-       x="Sexo binario",
-       y="Salario horario",
-       fill="Sexo binario"
+  labs(
+    title = "Salario por Sexo binario",
+    x = "Sexo binario",
+    y = "Salario horario",
+    fill = "Sexo binario"
   )
 g
 ```
@@ -250,10 +256,12 @@ summaryBy(
   FUN = function(x) {
     c(
       std = sd(x),
+      min = min(x),
+      max = max(x),
       mean = mean(x),
-      median=median(x),
-      skewness=skewness(x),
-      kurtosis=kurtosis(x)
+      median = median(x),
+      skewness = skewness(x),
+      kurtosis = kurtosis(x)
     )
   }
 )
@@ -265,13 +273,27 @@ summaryBy(
 > E[ln(salario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaLaboral + \beta_3 \cdot ExperienciaLaboral^2
 > $$
 >
-> En los siguientes consignas la idea es ir aproximándose a esta lógica de modelado
+> En las siguientes consignas la idea es ir aproximándose a esta lógica de modelado
 
 ## Modelos lineales experiencia
 
-> Se va a comenzar con dos modelos lineales que utilicen la información de la experiencia potencial. Primero, ajustar un modelo de regresión para explicar el salario por hora usando únicamente la `experiencia_potencial` como covariable.$$
-> E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial
-> $$
+> Se va a comenzar con dos modelos lineales que utilicen la información de la experiencia potencial. Primero, ajustar un modelo de regresión para explicar el salario por hora usando únicamente la `experiencia_potencial` como covariable. $$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial $$
+
+```{r, test-rgl, webgl=TRUE}
+with(df_train,
+     plot3d(
+             x = educacion,
+             y = experiencia_potencial,
+             z = salario_horario,
+             xlab="Educación",
+             ylab="Experiencia Potencial",
+             zlab="Salario Horario",
+             col=as.numeric(sexo)
+     )
+)
+k <- sort(unique(df_train$sexo))
+legend3d("topright", legend=k, pch=16, col=k, title='Sexo', horiz=FALSE, cex=1, inset=c(0.02))
+```
 
 ```{r}
 ml.experiencia <- lm(
@@ -281,22 +303,65 @@ ml.experiencia <- lm(
 ml.experiencia
 ```
 
-Luego, ajustar otro modelo en donde las únicas covariables sean la `experiencia_potencial` y el cuadrado de la `experiencia_potencial`.
-
-$$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 $$
+> Luego, ajustar otro modelo en donde las únicas covariables sean la `experiencia_potencial` y el cuadrado de la `experiencia_potencial`. $$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 $$
 
 ```{r}
 ml.experiencia.squared <- lm(
   formula = salario_horario ~ educacion + experiencia_potencial + I(experiencia_potencial^2),
-  data = df_train)
+  data = df_train
+)
 ml.experiencia.squared
 ```
 
-Responder las siguientes preguntas en base a ambos modelos:
+A continuación se muestra un resumen del modelo de experiencia potencial:
 
-¿Cuál es el impacto de un año adicional de experiencia potencial en el salario horario esperado para cada uno de estos modelos?
+```{r}
+summary(ml.experiencia)
+```
 
-¿Cuál es el efecto sobre el salario horario esperado de un año más de experiencia laboral para una persona con 6 años de experiencia laboral? ¿Y para una persona con 35 años de experiencia laboral?
+A continuación se muestra un resumen del modelo de experiencia potencial y su cuadrado:
+
+```{r}
+summary(ml.experiencia.squared)
+```
+
+> Responder las siguientes preguntas con base en ambos modelos: ¿Cuál es el impacto de un año adicional de `experiencia potencial` en el `salario horario` esperado para cada uno de estos modelos?
+
+-   **Modelo Experiencia Potencial:** Cada año adicional de `experiencia potencial` aumenta el `salario horario` en \~6.01 unidades.
+-   **Modelo Experiencia Potencial y su cuadrado:** Cada año adicional de `experiencia potencial` aumenta el `salario horario` en \~11.02 unidades.
+
+El modelo que incluye el cuadrado de la `experiencia potencial` presenta un mayor aumento en la variable a explicar (`salario horario`) por cada año adicional de `experiencia potencial`. Ahora bien, la variable a explicar disminuye \~0.10 unidades por cada año adicional de `experiencia potencial` al cuadrado.
+
+> ¿Cuál es el efecto sobre el `salario horario` esperado de un año más de `experiencia laboral` para una persona con 6 años de `experiencia laboral`? ¿Y para una persona con 35 años de `experiencia laboral`?
+
+Para estimar el efecto sobre el `salario horario` esperado de un año más de `experiencia laboral` para una persona con 6 años de `experiencia laboral` y para una persona con 35 años de `experiencia laboral` se utilizan los coeficientes estimados en los modelos de experiencia potencial y experiencia potencial y su cuadrado.
+
+```{r}
+coef_experiencia <- coef(ml.experiencia)
+coef_experiencia.squared <- coef(ml.experiencia.squared)
+```
+
+Ahora con los coeficientes estimados se calcula el efecto sobre el `salario horario` esperado. Para ello, se multiplica el coeficiente estimado por la cantidad de años de `experiencia laboral` que se desea estimar. Ya que dicho coeficiente representa el cambio en el `salario horario` asociado a un aumento de una unidad en la `experiencia laboral`, manteniendo constante el resto de las variables. Es decir, indica cuánto se espera que varíe el `salario horario` por cada año adicional de `experiencia laboral`.
+
+```{r}
+efecto_6_anios <- coef_experiencia["experiencia_potencial"] * 6
+efecto_6_anios.squared <- coef_experiencia.squared["experiencia_potencial"] * 6
+efecto_35_anios <- coef_experiencia["experiencia_potencial"] * 35
+efecto_35_anios.squared <- coef_experiencia.squared["experiencia_potencial"] * 35
+
+print("Modelo experiencia:")
+print(paste("Efecto para 6 años de experiencia laboral:", efecto_6_anios))
+print(paste("Efecto para 6 años de experiencia laboral:", efecto_35_anios))
+print("__________________________________________________________")
+print("Modelo experiencia y su cuadrado:")
+print(paste("Efecto para 6 años de experiencia laboral:", efecto_6_anios.squared))
+print(paste("Efecto para 6 años de experiencia laboral:", efecto_35_anios.squared))
+```
+
+Los resultados obtenidos son:
+
+-   **Modelo Experiencia Potencial:** Para una persona con 6 años de `experiencia laboral` el `salario horario` esperado es de \~\$36.09. Para una persona con 35 años de `experiencia laboral` el `salario horario` esperado es de \~\$210.35.
+-   **Modelo Experiencia Potencial y su cuadrado:** Para una persona con 6 años de `experiencia laboral` el `salario horario` esperado es de \~\$66.10. Para una persona con 35 años de `experiencia laboral` el `salario horario` esperado es de \~\$385.70.
 
 ## Modelo lineal múltiple
 
@@ -306,8 +371,9 @@ $$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot E
 
 ```{r}
 ml.multiple <- lm(
-  formula = salario_horario ~ educacion + experiencia_potencial + I(experiencia_potencial^2) + sexo + sexo*educacion,
-  data = df_train)
+  formula = salario_horario ~ educacion + experiencia_potencial + I(experiencia_potencial^2) + sexo + sexo * educacion,
+  data = df_train
+)
 ml.multiple
 ```
 
@@ -328,8 +394,9 @@ $$ E[ln(SalarioHorario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cd
 
 ```{r}
 ml.enriquecido <- lm(
-  formula = log(salario_horario) ~ educacion + experiencia_potencial + I(experiencia_potencial^2) + sexo + sexo*educacion,
-  data = df_train)
+  formula = log(salario_horario) ~ educacion + experiencia_potencial + I(experiencia_potencial^2) + sexo + sexo * educacion,
+  data = df_train
+)
 ml.enriquecido
 ```
 
@@ -345,7 +412,6 @@ Realizar 2 modelos lineales múltiples adicionales y explicar la lógica detrás
 *Nota:* No se pueden utilizar métodos de selección automática de variables dado que buscamos que analicen otras variables y realicen `feature engineering`.
 
 ```{r}
-
 ```
 
 Evaluar y comparar la performance del **modelo lineal múltiple**, el **modelo de `Mincer`** y los modelos desarrollados en este punto en el dataset de entrenamiento y evaluación (usar dataset `eph_test_2022.csv`). La evaluación de performance consiste en comparar la performance en términos del RMSE y MAE sobre el set de entrenamiento y el set de evaluación.
@@ -369,19 +435,16 @@ head(df_outliers, 2)
 Realizar dos gráficos del salario horario, uno para el dataset de entrenamiento sin outliers y otro para el dataset con outliers que permitan observar claramente la diferencia entre ambos sets de datos.
 
 ```{r}
-
 ```
 
 Sobre este nuevo conjunto de datos entrenar el **modelo lineal múltiple**, el **modelo de `Mincer`** y un **modelo robusto** (misma especificación que el modelo lineal múltiple). Comparar exhaustivamente los coeficientes estimados y su significatividad entre el **modelo lineal múltiple** y el **modelo robusto**.
 
 ```{r}
-
 ```
 
 Comparar la performance (RMSE y MAE) de los tres modelos entrenados en este punto en el dataset de entrenamiento (con outliers) y de evaluación ¿Qué puede concluir al respecto?
 
 ```{r}
-
 ```
 
 ```{r include=FALSE, collapse=TRUE, echo=FALSE}
