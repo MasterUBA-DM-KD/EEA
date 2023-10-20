@@ -43,6 +43,7 @@ execute:
 # Librerías
 
 ```{r, echo=TRUE, include=TRUE, results='hide', message=FALSE}
+library(car)
 library(doBy)
 library(knitr)
 library(dplyr)
@@ -52,6 +53,10 @@ library(moments)
 library(ggplot2)
 library(tidyverse)
 library(rgl)
+library(gridExtra)
+library(gtable)
+library(grid)
+library(Metrics)
 
 suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(GGally))
@@ -70,6 +75,12 @@ knitr::opts_chunk$set(message = FALSE)
 knitr::opts_chunk$set(warning = FALSE)
 knitr::knit_hooks$set(webgl = hook_webgl)
 knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60), tidy = TRUE)
+```
+
+```{r}
+path_train <- "datasets/eph_train_2022.csv"
+path_test <- "datasets/eph_test_2022.csv"
+path_outliers <- "datasets/eph_train_outliers_2022.csv"
 ```
 
 # Datos
@@ -127,7 +138,7 @@ El diccionario de todas las variables que forman parte de la base de datos cruda
 > Leer el archivo `eph_train_2022.csv`. ¿Qué puede mencionar sobre su estructura y variables?
 
 ```{r}
-df_train <- read_csv("datasets/eph_train_2022.csv") %>%
+df_train <- read_csv(path_train) %>%
   mutate_at(c("codusu", "ano4", "aglomerado", "trimestre", "codigo_actividad", "sexo"), as.factor) %>%
   mutate(fecha_nacimiento = as.Date(fecha_nacimiento, format = "%d/%m/%Y"))
 ```
@@ -171,11 +182,11 @@ df_categoricas <- df_train[, !(names(df_train) %in% names(df_numericas))]
 ```
 
 ```{r}
-head(df_numericas, 2)
+head(df_numericas, 5)
 ```
 
 ```{r}
-head(df_categoricas, 2)
+head(df_categoricas, 5)
 ```
 
 > ¿Cómo es la correlación entre las variables numéricas? Utilice y analice en detalle algún gráfico que sirva para sacar conclusiones sobre la asociación de variables realizando apertura por `sexo`.
@@ -269,31 +280,32 @@ summaryBy(
 
 # Modelos
 
-> Un modelo clásico del salario es la llamada ecuación de `Mincer`. Existen varias especificaciones pero la más típica es:$$
-> E[ln(salario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaLaboral + \beta_3 \cdot ExperienciaLaboral^2
-> $$
->
-> En las siguientes consignas la idea es ir aproximándose a esta lógica de modelado
+> Un modelo clásico del salario es la llamada ecuación de `Mincer`. Existen varias especificaciones, pero la más típica es: $E[ln(salario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaLaboral + \beta_3 \cdot ExperienciaLaboral^2$ En las siguientes consignas la idea es ir aproximándose a esta lógica de modelado
 
 ## Modelos lineales experiencia
 
-> Se va a comenzar con dos modelos lineales que utilicen la información de la experiencia potencial. Primero, ajustar un modelo de regresión para explicar el salario por hora usando únicamente la `experiencia_potencial` como covariable. $$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial $$
+> Se va a comenzar con dos modelos lineales que utilicen la información de la experiencia potencial. Primero, ajustar un modelo de regresión para explicar el `salario horario` usando únicamente la `experiencia_potencial` como covariable. $E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial$
+
+A continuación se muestra un gráfico de la variable a explicar (`salario horario`) en función de la variable `experiencia potencial` y `educación` realizando apertura por `sexo`:
 
 ```{r, test-rgl, webgl=TRUE}
-with(df_train,
-     plot3d(
-             x = educacion,
-             y = experiencia_potencial,
-             z = salario_horario,
-             xlab="Educación",
-             ylab="Experiencia Potencial",
-             zlab="Salario Horario",
-             col=as.numeric(sexo)
-     )
+with(
+  df_train,
+  plot3d(
+    x = educacion,
+    y = experiencia_potencial,
+    z = salario_horario,
+    xlab = "Educación",
+    ylab = "Experiencia Potencial",
+    zlab = "Salario Horario",
+    col = as.numeric(sexo)
+  )
 )
 k <- sort(unique(df_train$sexo))
-legend3d("topright", legend=k, pch=16, col=k, title='Sexo', horiz=FALSE, cex=1, inset=c(0.02))
+legend3d("topright", legend = k, pch = 16, col = k, title = "Sexo binario", horiz = TRUE, cex = 1, inset = c(0.02))
 ```
+
+A continuación se ajustó el modelo de regresión para explicar el `salario horario` usando únicamente la `experiencia_potencial` como covariable.
 
 ```{r}
 ml.experiencia <- lm(
@@ -303,7 +315,9 @@ ml.experiencia <- lm(
 ml.experiencia
 ```
 
-> Luego, ajustar otro modelo en donde las únicas covariables sean la `experiencia_potencial` y el cuadrado de la `experiencia_potencial`. $$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 $$
+> Luego, ajustar otro modelo en donde las únicas covariables sean la `experiencia_potencial` y el cuadrado de la `experiencia_potencial`. $E(SalarioHorario) = \beta_0 + \beta_1 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2$
+
+Se ajustó el modelo de regresión para explicar el `salario horario` usando la `experiencia_potencial` y su cuadrado como covariable.
 
 ```{r}
 ml.experiencia.squared <- lm(
@@ -313,61 +327,65 @@ ml.experiencia.squared <- lm(
 ml.experiencia.squared
 ```
 
-A continuación se muestra un resumen del modelo de experiencia potencial:
+Se muestra un resumen del modelo de experiencia potencial:
 
 ```{r}
 summary(ml.experiencia)
 ```
 
-A continuación se muestra un resumen del modelo de experiencia potencial y su cuadrado:
+Se muestra un resumen del modelo de experiencia potencial y su cuadrado:
 
 ```{r}
 summary(ml.experiencia.squared)
 ```
 
-> Responder las siguientes preguntas con base en ambos modelos: ¿Cuál es el impacto de un año adicional de `experiencia potencial` en el `salario horario` esperado para cada uno de estos modelos?
+> Responder las siguientes preguntas con base en ambos modelos:
 
--   **Modelo Experiencia Potencial:** Cada año adicional de `experiencia potencial` aumenta el `salario horario` en \~6.01 unidades.
--   **Modelo Experiencia Potencial y su cuadrado:** Cada año adicional de `experiencia potencial` aumenta el `salario horario` en \~11.02 unidades.
+> ¿Cuál es el impacto de un año adicional de `experiencia potencial` en el `salario horario` esperado para cada uno de estos modelos?
 
-El modelo que incluye el cuadrado de la `experiencia potencial` presenta un mayor aumento en la variable a explicar (`salario horario`) por cada año adicional de `experiencia potencial`. Ahora bien, la variable a explicar disminuye \~0.10 unidades por cada año adicional de `experiencia potencial` al cuadrado.
+El coeficiente estimado para la variable de `experiencia potencial` para ambos modelos tiene las unidades $\frac{\$}{h} \frac{1}{año experiencia}$. En el caso del modelo que incluye el cuadrado de la `experiencia potencial` el coeficiente estimado para la variable de `experiencia potencial` al cuadrado tiene las unidades $\frac{\$}{h} \frac{1}{año experiencia^2}$. Por lo tanto, el impacto de un año adicional de `experiencia potencial` en el `salario horario` esperado para cada uno de estos modelos es:
+
+-   **Modelo Experiencia Potencial:** Cada año adicional de `experiencia potencial` aumenta el `salario horario` esperado en $6.01\frac{\$}{h}$.
+-   **Modelo Experiencia Potencial y su cuadrado:** Cada año adicional de `experiencia potencial` aumenta el `salario horario` esperado en $11.02\frac{\$}{h}$ y se disminuye $0.10{\$}{h}$ por cada año adicional al cuadrado de `experiencia potencial`.
 
 > ¿Cuál es el efecto sobre el `salario horario` esperado de un año más de `experiencia laboral` para una persona con 6 años de `experiencia laboral`? ¿Y para una persona con 35 años de `experiencia laboral`?
 
-Para estimar el efecto sobre el `salario horario` esperado de un año más de `experiencia laboral` para una persona con 6 años de `experiencia laboral` y para una persona con 35 años de `experiencia laboral` se utilizan los coeficientes estimados en los modelos de experiencia potencial y experiencia potencial y su cuadrado.
+Para estimar el efecto sobre el `salario horario` esperado de un año más de `experiencia laboral` para una persona con `n` años de `experiencia laboral` se utilizan los coeficientes estimados en ambos modelos. Ya que el coeficiente representa el cambio en el `salario horario` asociado a un aumento de una unidad en la `experiencia laboral`, manteniendo constante el resto de las variables.
 
 ```{r}
 coef_experiencia <- coef(ml.experiencia)
 coef_experiencia.squared <- coef(ml.experiencia.squared)
 ```
 
-Ahora con los coeficientes estimados se calcula el efecto sobre el `salario horario` esperado. Para ello, se multiplica el coeficiente estimado por la cantidad de años de `experiencia laboral` que se desea estimar. Ya que dicho coeficiente representa el cambio en el `salario horario` asociado a un aumento de una unidad en la `experiencia laboral`, manteniendo constante el resto de las variables. Es decir, indica cuánto se espera que varíe el `salario horario` por cada año adicional de `experiencia laboral`.
+Ahora con los coeficientes estimados se calcula el efecto de un año más sobre el `salario horario` esperado. Para ello, se multiplica el coeficiente estimado por la diferencia en años de `experiencia laboral` que se desea estimar.
 
 ```{r}
-efecto_6_anios <- coef_experiencia["experiencia_potencial"] * 6
-efecto_6_anios.squared <- coef_experiencia.squared["experiencia_potencial"] * 6
-efecto_35_anios <- coef_experiencia["experiencia_potencial"] * 35
-efecto_35_anios.squared <- coef_experiencia.squared["experiencia_potencial"] * 35
+efecto_6_anios <- coef_experiencia["experiencia_potencial"] * (7 - 6)
+efecto_6_anios.squared <- coef_experiencia.squared["experiencia_potencial"] * (7 - 6) + coef_experiencia.squared["I(experiencia_potencial^2)"] * (7^2 - 6^2)
+efecto_35_anios <- coef_experiencia["experiencia_potencial"] * (36 - 35)
+efecto_35_anios.squared <- coef_experiencia.squared["experiencia_potencial"] * (36 - 35) + coef_experiencia.squared["I(experiencia_potencial^2)"] * (36^2 - 35^2)
+```
 
+```{r}
 print("Modelo experiencia:")
-print(paste("Efecto para 6 años de experiencia laboral:", efecto_6_anios))
-print(paste("Efecto para 6 años de experiencia laboral:", efecto_35_anios))
+print(paste("Efecto para 6 años de experiencia laboral:", round(efecto_6_anios, 2)))
+print(paste("Efecto para 35 años de experiencia laboral:", round(efecto_35_anios, 2)))
 print("__________________________________________________________")
 print("Modelo experiencia y su cuadrado:")
-print(paste("Efecto para 6 años de experiencia laboral:", efecto_6_anios.squared))
-print(paste("Efecto para 6 años de experiencia laboral:", efecto_35_anios.squared))
+print(paste("Efecto para 6 años de experiencia laboral:", round(efecto_6_anios.squared, 2)))
+print(paste("Efecto para 35 años de experiencia laboral:", round(efecto_35_anios.squared, 2)))
 ```
 
 Los resultados obtenidos son:
 
--   **Modelo Experiencia Potencial:** Para una persona con 6 años de `experiencia laboral` el `salario horario` esperado es de \~\$36.09. Para una persona con 35 años de `experiencia laboral` el `salario horario` esperado es de \~\$210.35.
--   **Modelo Experiencia Potencial y su cuadrado:** Para una persona con 6 años de `experiencia laboral` el `salario horario` esperado es de \~\$66.10. Para una persona con 35 años de `experiencia laboral` el `salario horario` esperado es de \~\$385.70.
+-   **Modelo Experiencia Potencial:** Tanto para una persona con 6 años como para una persona con 35 años de `experiencia potencial` el efecto en el `salario horario` esperado es de $6.01\frac{\$}{h}$. Es decir, el aumento es constante para cada año adicional de `experiencia potencial`.
+-   **Modelo Experiencia Potencial y su cuadrado:** Para una persona con 6 años de `experiencia laboral` el efecto en el `salario horario` esperado es de $9.72\frac{\$}{h}$ y para una persona con 35 años es de $3.91\frac{\$}{h}$. Es decir, el efecto en el `salario horario` esperado muestra un aumento mayor para una persona con 6 años de `experiencia laboral` que para una persona con 35 años de `experiencia laboral`. Esto se debe a que el coeficiente estimado para la variable de `experiencia potencial` al cuadrado es negativo.
 
 ## Modelo lineal múltiple
 
-Se plantea un primer modelo múltiple a partir de la ecuación de `Mincer`:
+> Se plantea un primer modelo múltiple a partir de la ecuación de `Mincer`:
 
-$$ E(SalarioHorario) = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_3 \cdot ExperienciaPotencial^2 + \beta_4 \cdot Sexo + \beta_5 \cdot Sexo \cdot AñosEducación $$
+> $E(SalarioHorario) = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_3 \cdot ExperienciaPotencial^2 + \beta_4 \cdot Sexo + \beta_5 \cdot Sexo \cdot AñosEducación$
 
 ```{r}
 ml.multiple <- lm(
@@ -377,76 +395,456 @@ ml.multiple <- lm(
 ml.multiple
 ```
 
-Ajustar el modelo planteado y responder las siguientes preguntas:
+Se muestra un resumen del modelo lineal múltiple:
 
-¿Cuál es la interpretación de las variables incluidas en el modelo? ¿Sus coeficientes son significativos?
+```{r}
+summary(ml.multiple)
+```
 
-¿El modelo resulta significativo para explicar el salario?
+> Ajustar el modelo planteado y responder las siguientes preguntas:
 
-¿Qué porcentaje de la variabilidad explica el modelo?
+> ¿Cuál es la interpretación de las variables incluidas en el modelo? ¿Sus coeficientes son significativos?
 
-Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo
+-   **Intercepto:** El valor del `salario horario` esperado para un trabajador, este es negativo y no tiene sentido económico, ya que no existe un individuo cuyas características sean todas iguales a cero.
+-   **Educación:** Por cada año adicional de `educación`, el `salario horario` esperado aumenta en $48.23\frac{\$}{h}$.
+-   **Experiencia potencial:** Por cada año adicional de `experiencia potencial`, el `salario horario` esperado aumenta en $11.14\frac{\$}{h}$.
+-   $(Experiencia potencial)^2$: El efecto de la `experiencia potencial` al cuadrado es negativo, por lo que el `salario horario` esperado disminuye en $0.10\frac{\$}{h}$ por cada año adicional al cuadrado de `experiencia potencial`.
+-   **sexoVaron:** Un hombre gana, en promedio, $73.27\frac{\$}{h}$ más que una mujer con las mismas características.
+-   **Educación:sexoVaron:** La interacción entre `educación` y `sexo` **no** es significativa y el efecto es el menor de los todos. Ahora bien, los hombres con educación ganan, en promedio, $2.03\frac{\$}{h}$ menos que las mujeres con educación.
+
+> ¿El modelo resulta significativo para explicar el `salario horario`?
+
+El modelo resulta significativo para explicar el `salario horario`, ya que el valor del estadístico `F` es mayor al valor crítico de la distribución `F` con `5` y `11619` grados de libertad. Por lo que se rechaza la hipótesis nula $H_0$: No hay relación entre las variables independientes y la variable dependiente. Además, todos los coeficientes del modelo, excepto la interacción entre `educación` y `sexoVaron`, son estadísticamente significativos al nivel de `0.05`.
+
+En general, el modelo es significativo para explicar el `salario horario`, pero existen otras variables que pueden influir en el `salario horario` que no están incluidas en el modelo.
+
+> ¿Qué porcentaje de la variabilidad explica el modelo?
+
+En general, el presente modelo explica el `16.3%` de la varianza del `salario horario`, valor que es relativamente bajo. Sin embargo, es un valor esperable dado que el modelo no incluye todas las variables que pueden explicar el `salario horario`.
+
+> Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo.
+
+-   **Linealidad:** Este supuesto de linearidad se puede verificar mediante un gráfico de los residuos en función de los valores ajustados.
+
+```{r}
+plot(ml.multiple, 1)
+```
+
+Del gráfico anterior se esperaba que los datos no tengan un patrón, es decir, se esperaba que los residuos se distribuyan de forma aleatoria alrededor de la línea de 0. En este caso se observa que la línea de tendencia (línea roja) muestra una tendencia decreciente, por lo que se puede concluir que no se cumple el supuesto de linealidad.
+
+-   **Predictores son independientes:** Este supuesto se puede verificar con ayuda del test `Durbin-Watson`.
+
+```{r}
+durbinWatsonTest(ml.multiple)
+```
+
+E p-valor es mayor que 0.05 por lo que no se rechaza la hipótesis nula de que los residuos son independientes. En consecuencia, se cumple el supuesto de independencia de los residuos, por poco.
+
+-   **Residuales tienen media cero:** Este supuesto se puede verificar con ayuda del gráfico `Residuals vs Fitted`.
+
+```{r}
+plot(ml.multiple, 1)
+```
+
+Como se mencionó en el supuesto de *Linealidad*: los residuales no se distribuyen de forma aleatoria alrededor de la línea de 0, por lo que no se cumple el supuesto de que los residuales tienen media cero.
+
+-   **Residuales tienen varianza constante:** Este supuesto se puede verificar con ayuda del gráfico `Scale-Location`.
+
+```{r}
+plot(ml.multiple, 3)
+```
+
+En el gráfico anterior se aprecia que los residuos no tienen varianza constante, ya que la línea de tendencia (línea roja) es creciente.
+
+```{r}
+ncvTest(ml.multiple)
+```
+
+El p-value es menor que 0.05, por lo que se rechaza la hipótesis nula de que los residuos tienen varianza constante. En consecuencia, no se cumple el supuesto de varianza constante de los residuos.
+
+**Normalidad de los residuos:** El QQplot es un gráfico útil para corroborar que los residuos siguen una distribución normal.
+
+```{r}
+plot(ml.multiple, 2)
+```
+
+En el caso de que los residuos sigan una distribución normal, los puntos del QQplot deberían estar sobre la recta de 45 grados.
+
+```{r}
+ks.test(ml.multiple$residuals, "pnorm")
+```
+
+El p-value de la prueba de Kolmogorov-Smirnov es menor que 0.05, por lo que se rechaza la hipótesis nula de que los residuos siguen una distribución normal. En conclusión, no se cumple el supuesto de normalidad de los residuos.
 
 ## Modelo de `Mincer` `"enriquecido"`
 
-Ahora, se procede a modelar según una especicación del modelo de `Mincer` con ciertas variables adicionales\
-$$ E[ln(SalarioHorario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 + \beta_3 \cdot Sexo + \beta_4 \cdot Sexo \cdot AñosEducación $$
+> Ahora, se procede a modelar según una especificación del modelo de `Mincer` con ciertas variables adicionales\
+> $$ E[ln(SalarioHorario)] = \beta_0 + \beta_1 \cdot AñosEducación + \beta_2 \cdot ExperienciaPotencial + \beta_2 \cdot ExperienciaPotencial^2 + \beta_3 \cdot Sexo + \beta_4 \cdot Sexo \cdot AñosEducación $$
 
 ```{r}
-ml.enriquecido <- lm(
+ml.mincer <- lm(
   formula = log(salario_horario) ~ educacion + experiencia_potencial + I(experiencia_potencial^2) + sexo + sexo * educacion,
   data = df_train
 )
-ml.enriquecido
+ml.mincer
 ```
 
--   ¿Cuál es la interpretación del coeficiente asociado a la variable de años de educación? ¿Se observan cambios en la significatividad individual de los coeficientes respecto al modelo anterior?
--   ¿Qué porcentaje de la variabilidad del salario horario explica el modelo? ¿Cómo se compara con la variabilidad explicada por el modelo anterior?\
-    *Nota:* tenga en cuenta que la variable predicha es el logaritmo del salario horario y se pide el porcentaje de variabilidad explicada del salario horario. Además, como los dos modelos tienen la misma cantidad de covariables es posible compararlos mediante el el R-cuadrado simple
--   Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo y comparar con el análisis del modelo anterior
+A continuación se muestra un resumen del modelo de `Mincer`:
+
+```{r}
+summary(ml.mincer)
+```
+
+Previo a analizar los resultados del modelo cabe destacar: *sEl logaritmo es una función monótona por lo que la transformación del logaritmo permite interpretar el coeficiente asociado a sus variables predictoras como un aumento porcentual en la variable a explicar (`salario horario`) ya que una pequeña diferencia en el logaritmo de dos valores se traduce en una pequeña diferencia porcentual entre esos dos valores*.
+
+> -   ¿Cuál es la interpretación del coeficiente asociado a la variable de años de educación?
+
+El coeficiente asociado a la variable de años de `educación` es de 0,0897. Esto significa que, por cada año adicional de educación, el `salario horario` esperado aumenta en un 8,97%. El coeficiente es estadísticamente significativo al nivel de 0.05. O bien, es muy probable que la relación entre la `educación` y el `salario horario` de un individuo sea real y no se deba al azar.
+
+> -¿Se observan cambios en la significatividad individual de los coeficientes respecto al modelo anterior?
+
+Sí, se observan cambios en la significatividad individual de los coeficientes respecto al modelo anterior. En el modelo anterior, todos los coeficientes eran estadísticamente significativos al nivel de 0.05, excepto la interacción `educacion:sexoVaron`. Ahora, en el modelo dado, el coeficiente de interacción entre `educación:sexoVaron` es estadísticamente significativo.
+
+> -¿Qué porcentaje de la variabilidad del salario horario explica el modelo?
+
+El modelo explica el 18,3% de la variabilidad del salario horario. Este valor es mayor al valor obtenido en el modelo anterior, pero sigue siendo relativamente bajo. Esto se debe a que el modelo no incluye todas las variables que pueden explicar el `salario horario`.
+
+> -¿Cómo se compara con la variabilidad explicada por el modelo anterior?\
+> *Nota:* tenga en cuenta que la variable predicha es el logaritmo del `salario horario` y se pide el porcentaje de variabilidad explicada del `salario horario`. Además, como los dos modelos tienen la misma cantidad de covariables es posible compararlos mediante el $R^2$ simple.
+
+El modelo de `Mincer` explica el 18,3% de la variabilidad del `salario horario`, mientras que el modelo anterior explica el 16,3%. Valor que es ligeramente mayor que la variabilidad explicada por el modelo anterior. El aumento es probablemente debido a la transformación del logaritmo de la variable dependiente, es decir, la transformación del logaritmo puede ayudar a mejorar el ajuste del modelo, lo que puede conducir a un aumento del coeficiente de determinación. En conclusión, el modelo dado es un mejor predictor del salario horario que el modelo anterior.
+
+> -   Analizar en profundidad el cumplimiento de los supuestos del modelo lineal para este modelo y comparar con el análisis del modelo anterior
+
+-   **Linealidad:** Este supuesto de linearidad se puede verificar mediante un gráfico de los residuos en función de los valores ajustados.
+
+```{r}
+plot(ml.mincer, 1)
+```
+
+Del gráfico anterior se esperaba que los datos no tengan un patrón, es decir, se esperaba que los residuos se distribuyan de forma aleatoria alrededor de la línea de 0. En este caso se observa que la línea de tendencia (línea roja) muestra una tendencia cercana al cero, por lo que se puede concluir que se cumple el supuesto de linealidad.
+
+-   **Predictores son independientes:** Este supuesto se puede verificar con ayuda del test `Durbin-Watson`.
+
+```{r}
+durbinWatsonTest(ml.mincer)
+```
+
+E p-valor es mayor que 0.05 por lo que no se rechaza la hipótesis nula de que los residuos son independientes. En consecuencia, se cumple el supuesto de independencia de los residuos.
+
+-   **Residuales tienen media cero:** Este supuesto se puede verificar con ayuda del gráfico `Residuals vs Fitted`.
+
+```{r}
+plot(ml.mincer, 1)
+```
+
+Como se mencionó en el supuesto de *Linealidad*: los residuales se distribuyen de forma aleatoria alrededor de la línea de 0, por lo que no se cumple el supuesto de que los residuales tienen media cero.
+
+-   **Residuales tienen varianza constante:** Este supuesto se puede verificar con ayuda del gráfico `Scale-Location`.
+
+```{r}
+plot(ml.mincer, 3)
+```
+
+En el gráfico anterior se aprecia que los residuos no tienen varianza constante, ya que la línea de tendencia (línea roja) es cuasi-constante.
+
+```{r}
+ncvTest(ml.mincer)
+```
+
+El p-value es menor que 0.05, por lo que se rechaza la hipótesis nula de que los residuos tienen varianza constante. En consecuencia, no se cumple el supuesto de varianza constante de los residuos.
+
+**Normalidad de los residuos:** El QQplot es un gráfico útil para corroborar que los residuos siguen una distribución normal.
+
+```{r}
+plot(ml.mincer, 2)
+```
+
+En el caso de que los residuos sigan una distribución normal, los puntos del QQplot deberían estar sobre la recta de 45 grados.
+
+```{r}
+ks.test(ml.mincer$residuals, "pnorm")
+```
+
+El p-value de la prueba de Kolmogorov-Smirnov es menor que 0.05, por lo que se rechaza la hipótesis nula de que los residuos siguen una distribución normal. En conclusión, no se cumple el supuesto de normalidad de los residuos.
 
 ## Modelos propios y evaluación
 
-Realizar 2 modelos lineales múltiples adicionales y explicar la lógica detrás de los mismos (se valorará la creación y/o inclusión de variables nuevas).
+> Realizar 2 modelos lineales múltiples adicionales y explicar la lógica detrás de los mismos (se valorará la creación y/o inclusión de variables nuevas).\
+> *Nota:* No se pueden utilizar métodos de selección automática de variables dado que buscamos que analicen otras variables y realicen `feature engineering`.
 
-*Nota:* No se pueden utilizar métodos de selección automática de variables dado que buscamos que analicen otras variables y realicen `feature engineering`.
+Se proponen los siguientes modelos:
+
+**Modelo 1**
+
+$salario_horario = \beta_0 + \beta_1 \cdot educacion + \beta_2 \cdot experiencia_potencial + \beta_3 \cdot sexo + \beta_4 \cdot categoria_ocupacion + \beta_5 \cdot tipo_establecimiento + \beta_6 \cdot aglomerado$
+
+Este modelo es un modelo simple que incluye las variables más importantes que se sabe que influyen en el `salario horario`. Estas variables son:
+
+-   **Educación:** Los trabajadores con más educación suelen ganar más.
+-   **Experiencia potencial:** Los trabajadores con más experiencia suelen ganar más.
+-   **Sexo:** Los hombres suelen ganar más que las mujeres.
+-   **Categoría ocupación:** Los trabajadores en ciertas categorías ocupacionales suelen ganar más que los trabajadores en otras categorías ocupacionales.
+-   **Tipo de establecimiento:** Los trabajadores en ciertos tipos de establecimientos suelen ganar más que los trabajadores en otros tipos de establecimientos.
+-   **Aglomerado:** Los trabajadores en ciertos aglomerados suelen ganar más que los trabajadores en otros aglomerados.
+
+La inclusión de estas variables adicionales puede mejorar el ajuste del modelo y proporcionar una explicación más completa del `salario horario`.
 
 ```{r}
+ml.primer <- lm(
+  formula = salario_horario ~ educacion + experiencia_potencial + sexo + categoria_ocupacion + tipo_establecimiento + aglomerado,
+  data = df_train
+)
+summary(ml.primer)
 ```
 
-Evaluar y comparar la performance del **modelo lineal múltiple**, el **modelo de `Mincer`** y los modelos desarrollados en este punto en el dataset de entrenamiento y evaluación (usar dataset `eph_test_2022.csv`). La evaluación de performance consiste en comparar la performance en términos del RMSE y MAE sobre el set de entrenamiento y el set de evaluación.
+En este caso, incluir variables adicionales al modelo aumentó el valor de $R^2$ y su valor de $R^2 ajustado$ es mayor que el valor de $R^2 ajustado$ de los modelos anteriores. Esto significa que el modelo dado es un mejor predictor del `salario horario` que los modelo anteriores.
+
+**Modelo 2**
+
+$log(salario_horario) = \beta_0 + \beta_1 * educacion + \beta_2 * experiencia_potencial + \beta_3 \cdot exp(edad) + \beta_4 \cdot cat_cantidad_empleos$
+
+Este modelo incluye:
+
+-   **Educación:** Los trabajadores con más educación suelen ganar más.
+-   **Experiencia potencial:** Los trabajadores con más experiencia suelen ganar más.
+-   **Cantidad de empleos:** Los trabajadores suelen cambiar por un trabajo que ofrezca un extra comparado al anterior.
 
 ```{r}
-df_test <- read.csv("./datasets/eph_test_2022.csv", sep = ",", header = TRUE)
+ml.segundo <- lm(
+  formula = log(salario_horario) ~ educacion + experiencia_potencial + cat_cantidad_empleos,
+  data = df_train
+)
+summary(ml.segundo)
+```
+
+No se aprecia un aumento en el valor de $R^2$ y su valor de $R^2 ajustado$ comparado con los modelos anteriores.
+
+> Evaluar y comparar la performance del **modelo lineal múltiple**, el **modelo de `Mincer`** y los modelos desarrollados en este punto en el dataset de entrenamiento y evaluación (usar dataset `eph_test_2022.csv`). La evaluación de performance consiste en comparar la performance en términos del `RMSE` y `MAE` sobre el set de entrenamiento y el set de evaluación.
+
+```{r}
+df_test <- read.csv(path_test, sep = ",", header = TRUE) %>% mutate_at(c("codusu", "ano4", "aglomerado", "trimestre", "codigo_actividad", "sexo"), as.factor)
 head(df_test, 2)
 ```
 
-¿Cuál es el mejor modelo para el objetivo de predecir el salario horario? ¿Por qué?
+Se calculan las métricas `MAE` y `RMSE` para cada modelo en el dataset de entrenamiento.
+
+```{r}
+preds.multiple.train <- predict(ml.multiple, df_train)
+preds.multiple.train.mae <- mae(preds.multiple.train, df_train$salario_horario)
+preds.multiple.train.rmse <- rmse(preds.multiple.train, df_train$salario_horario)
+
+preds.mincer.train <- exp(predict(ml.mincer, df_train))
+preds.mincer.train.mae <- mae(preds.mincer.train, df_train$salario_horario)
+preds.mincer.train.rmse <- rmse(preds.mincer.train, df_train$salario_horario)
+
+preds.primer.train <- predict(ml.primer, df_train)
+preds.primer.train.mae <- mae(preds.primer.train, df_train$salario_horario)
+preds.primer.train.rmse <- rmse(preds.primer.train, df_train$salario_horario)
+
+preds.segundo.train <- exp(predict(ml.segundo, df_train))
+preds.segundo.train.mae <- mae(preds.segundo.train, df_train$salario_horario)
+preds.segundo.train.rmse <- rmse(preds.segundo.train, df_train$salario_horario)
+```
+
+Se muestran las métricas `MAE` y `RMSE` para cada modelo en el dataset de entrenamiento.
+
+```{r}
+ml.metrics.train <- data.frame(
+  model = c("múltiple", "mincer", "primer", "segundo"),
+  MAE = c(preds.multiple.train.mae, preds.mincer.train.mae, preds.primer.train.mae, preds.segundo.train.mae),
+  RMSE = c(preds.multiple.train.rmse, preds.mincer.train.rmse, preds.primer.train.rmse, preds.segundo.train.rmse)
+)
+ml.metrics.train
+```
+
+Se calculan las métricas `MAE` y `RMSE` para cada modelo en el dataset de evaluación.
+
+```{r}
+preds.multiple.test <- predict(ml.multiple, df_test)
+preds.multiple.test.mae <- mae(preds.multiple.test, df_test$salario_horario)
+preds.multiple.test.rmse <- rmse(preds.multiple.test, df_test$salario_horario)
+
+preds.mincer.test <- exp(predict(ml.mincer, df_train))
+preds.mincer.test.mae <- mae(preds.mincer.test, df_test$salario_horario)
+preds.mincer.test.rmse <- rmse(preds.mincer.test, df_test$salario_horario)
+
+preds.primer.test <- predict(ml.primer, df_test)
+preds.primer.test.mae <- mae(preds.primer.test, df_test$salario_horario)
+preds.primer.test.rmse <- rmse(preds.primer.test, df_test$salario_horario)
+
+preds.segundo.test <- exp(predict(ml.segundo, df_test))
+preds.segundo.test.mae <- mae(preds.segundo.test, df_test$salario_horario)
+preds.segundo.test.rmse <- rmse(preds.segundo.test, df_test$salario_horario)
+```
+
+Se muestran las métricas `MAE` y `RMSE` para cada modelo en el dataset de evaluación.
+
+```{r}
+ml.metrics.test <- data.frame(
+  model = c("múltiple", "mincer", "primer", "segundo"),
+  MAE = c(preds.multiple.test.mae, preds.mincer.test.mae, preds.primer.test.mae, preds.segundo.test.mae),
+  RMSE = c(preds.multiple.test.rmse, preds.mincer.test.rmse, preds.primer.test.rmse, preds.segundo.test.rmse)
+)
+ml.metrics.test
+```
+
+> -   ¿Cuál es el mejor modelo para el objetivo de predecir el salario horario? ¿Por qué?
+
+```{r}
+r2_models <- data.frame(
+  model = c("múltiple", "mincer", "primer", "segundo"),
+  r_2 = c(summary(ml.multiple)$r.squared, summary(ml.mincer)$r.squared, summary(ml.primer)$r.squared, summary(ml.segundo)$r.squared),
+  r_2_adj = c(summary(ml.multiple)$adj.r.squared, summary(ml.mincer)$adj.r.squared, summary(ml.primer)$adj.r.squared, summary(ml.segundo)$adj.r.squared)
+)
+r2_models
+```
+
+El primer modelo ofrece un mayor rendimiento, no solo en términos de métricas como `MAE` y `RMSE`, sino también en términos de $R^2$ y $R^2 ajustado$. Esto significa que el modelo dado es un mejor predictor del `salario horario` que los modelos anteriores, sin tener en cuenta el modelo robusto.
 
 ## Modelo lineal robusto
 
-Leer el archivo `eph_train_outliers_2022.csv`. Este último consiste en el dataset original de train con la incorporación de algunas observaciones adicionales que pueden incluir valores atípicos.
+> Leer el archivo `eph_train_outliers_2022.csv`. Este último consiste en el dataset original de train con la incorporación de algunas observaciones adicionales que pueden incluir valores atípicos.
 
 ```{r}
-df_outliers <- read.csv("./datasets/eph_train_outliers_2022.csv", sep = ",", header = TRUE)
+df_outliers <- read.csv(path_outliers, sep = ",", header = TRUE) %>% mutate_at(c("codusu", "ano4", "aglomerado", "trimestre", "codigo_actividad", "sexo"), as.factor)
 head(df_outliers, 2)
 ```
 
-Realizar dos gráficos del salario horario, uno para el dataset de entrenamiento sin outliers y otro para el dataset con outliers que permitan observar claramente la diferencia entre ambos sets de datos.
+> Realizar dos gráficos del `salario horario`, uno para el dataset de entrenamiento sin outliers y otro para el dataset con outliers que permitan observar claramente la diferencia entre ambos sets de datos.
+
+Se realizaron los gráficos de cajas & bigotes y de densidad para el `salario horario` con apertura por `sexo` para el dataset de entrenamiento sin outliers y con outliers.
 
 ```{r}
+g1 <- ggplot(
+  df_train,
+  aes(x = sexo, y = salario_horario, fill = sexo)
+) +
+  geom_boxplot(alpha = 0.5) +
+  theme_classic() +
+  labs(
+    title = "Entrenamiento sin outliers",
+    x = "Sexo",
+    y = "Salario horario",
+    fill = "Sexo binario"
+  ) +
+  theme(legend.position = "none")
+g2 <- ggplot(
+  df_outliers,
+  aes(x = sexo, y = salario_horario, fill = sexo)
+) +
+  geom_boxplot(alpha = 0.5) +
+  theme_classic() +
+  labs(
+    title = "Entrenamiento con outliers",
+    x = "Sexo",
+    y = "",
+    fill = "Sexo binario"
+  ) +
+  theme(legend.position = "none")
+
+g3 <- ggplot(
+  df_train,
+  aes(x = salario_horario, fill = sexo),
+) +
+  geom_density(alpha = 0.5) +
+  theme_classic() +
+  labs(
+    title = "Entrenamiento sin outliers",
+    y = "Salario horario",
+    fill = "Sexo binario"
+  ) +
+  theme(legend.position = "none")
+
+g4 <- ggplot(
+  df_outliers,
+  aes(x = salario_horario, fill = sexo),
+) +
+  geom_density(alpha = 0.5) +
+  theme_classic() +
+  labs(
+    title = "Entrenamiento con outliers",
+    y = "Salario horario",
+    fill = "Sexo binario"
+  )
+grid.arrange(g1, g2, g3, g4, nrow = 2)
 ```
 
-Sobre este nuevo conjunto de datos entrenar el **modelo lineal múltiple**, el **modelo de `Mincer`** y un **modelo robusto** (misma especificación que el modelo lineal múltiple). Comparar exhaustivamente los coeficientes estimados y su significatividad entre el **modelo lineal múltiple** y el **modelo robusto**.
+Se aprecia presencia de outliers en el dataset que lleva el nombre de `df_outliers`. En particular, se observa que los outliers se encuentran en el `sexo` varon.
+
+> Sobre este nuevo conjunto de datos entrenar el **modelo lineal múltiple**, el **modelo de `Mincer`** y un **modelo robusto** (misma especificación que el modelo lineal múltiple). Comparar exhaustivamente los coeficientes estimados y su significatividad entre el **modelo lineal múltiple** y el **modelo robusto**.
 
 ```{r}
+library(MASS)
+ml.multiple.outliers <- lm(
+  formula = salario_horario ~ educacion + experiencia_potencial + I(experiencia_potencial^2) + sexo + sexo * educacion,
+  data = df_outliers
+)
+
+ml.mincer.outliers <- lm(
+  formula = log(salario_horario) ~ educacion + experiencia_potencial + I(experiencia_potencial^2) + sexo + sexo * educacion,
+  data = df_outliers
+)
+
+ml.robust <- rlm(
+  formula = salario_horario ~ educacion + experiencia_potencial + I(experiencia_potencial^2) + sexo + sexo * educacion,
+  data = df_outliers
+)
 ```
 
-Comparar la performance (RMSE y MAE) de los tres modelos entrenados en este punto en el dataset de entrenamiento (con outliers) y de evaluación ¿Qué puede concluir al respecto?
+Modelo múltiple
 
 ```{r}
+summary(ml.multiple.outliers)
 ```
 
-```{r include=FALSE, collapse=TRUE, echo=FALSE}
-styler::style_file("TP1/eea2023_tp1_Uribe_Alejandro.Rmd")
+Modelo de `Mincer`
+
+```{r}
+summary(ml.mincer.outliers)
+```
+
+Modelo `robusto`
+
+```{r}
+summary(ml.robust)
+```
+
+-   **Modelo lineal múltiple:** Dos de las variables predictoras del modelo múltiple no son estadísticamente significativas para explicar el `salario horario`.
+-   **Modelo de Mincer:** Todas las variables predictoras del modelo de `Mincer` son estadísticamente significativas para explicar el `salario horario`.
+-   **Modelo robusto:** Estos resultados son consistentes con los resultados de modelos anteriores. La `educación` y la `experiencia potencial` son dos de los factores más importantes que influyen en el `salario horario`. Los hombres también suelen ganar más que las mujeres, independiente de su experiencia y educación.
+
+> Comparar la performance (`RMSE` y `MAE`) de los tres modelos entrenados en este punto en el dataset de entrenamiento (con outliers) y de evaluación ¿Qué puede concluir al respecto?
+
+```{r}
+preds.multiple.outliers <- predict(ml.multiple.outliers, df_outliers)
+preds.multiple.outliers.mae <- mae(preds.multiple.outliers, df_outliers$salario_horario)
+preds.multiple.outliers.rmse <- rmse(preds.multiple.outliers, df_outliers$salario_horario)
+
+preds.mincer.outliers <- exp(predict(ml.mincer.outliers, df_outliers))
+preds.mincer.outliers.mae <- mae(preds.mincer.outliers, df_outliers$salario_horario)
+preds.mincer.outliers.rmse <- rmse(preds.mincer.outliers, df_outliers$salario_horario)
+
+preds.robust.outliers <- predict(ml.robust, df_outliers)
+preds.robust.outliers.mae <- mae(preds.robust.outliers, df_outliers$salario_horario)
+preds.robust.outliers.rmse <- rmse(preds.robust.outliers, df_outliers$salario_horario)
+```
+
+Se muestran las métricas `MAE` y `RMSE` para cada modelo en el dataset de outliers.
+
+```{r}
+ml.metrics.outliers <- data.frame(
+  model = c("múltiple", "mincer", "robusto"),
+  MAE = c(preds.multiple.outliers.mae, preds.mincer.outliers.mae, preds.robust.outliers.mae),
+  RMSE = c(preds.multiple.outliers.rmse, preds.mincer.outliers.rmse, preds.robust.outliers.rmse)
+)
+ml.metrics.outliers
+```
+
+No es posible comparar los resultados de $R^2$ y $R^2ajustado$ entre los modelos, ya que el modelo `robusto` no tiene estos valores. No obstante, en cuanto a las métricas `MAE`, el modelo `Mincer` es el que ofrece un mejor rendimiento, seguido por el modelo `robusto` y el modelo `múltiple`. Por otro lado, el modelo `múltiple` mostró un mejor rendimiento en términos de `RMSE`, es decir, es menos susceptible a los valores extremos, estos impactan mayormente esta métrica ya que el error se encuentra al cuadrado.
+
+Por otro lado, `MAE` es una métrica que ofrece una mayor explicabilidad, ya que está en las mismas unidades de la variable dependiente. Por lo que es más intuitivo mencionar que el modelo `Mincer` tiene un error de ±$244\frac{\$}{h}$.
+
+```{r}
+styler::style_file("eea2023_tp1_Uribe_Alejandro.Rmd")
 ```
