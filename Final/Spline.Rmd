@@ -1,8 +1,8 @@
 ---
-title: "Trabajo Final EEA: Spline smoothing"
+title: "Métodos de suavizado"
 subtitle: ""
 author:
-  - name: Métodos de suavizado
+  - name: Spline smoothing
     url: https://github.com/UribeAlejandro
     affiliation: Enfoque Estadístico del Aprendizaje - Universidad de Buenos Aires
 date: "`r format(Sys.time(), '%d %B %Y')`"
@@ -73,7 +73,7 @@ KO <- KO[,c(1:4)]
 ```
 
 
-Se calcula SMA50 para el set de datos.
+Se calcula `SMA50` para el set de datos. La media móvil se usa como referencia.
 
 ```{r}
 KO$SMA50 <- SMA(Cl(KO), n = 50)
@@ -132,32 +132,119 @@ ggplot(data=KO, aes(x=date, y=KO.Close))+
 [Spline Interactivo](http://127.0.0.1:7921)
 
 
-# Búsqueda de Lambda/CV
+# Particularidades
 
-El proceso se lleva a cabo usando **Leave One Out Cross Validation** `LOO-CV` o **Generalized Cross Validation** `GCV`.
+```{r}
+spar_0 <- smooth.spline(date, stock_data, spar = 0)
+spar_1 <- smooth.spline(date, stock_data, spar = 1)
+spar_2 <- smooth.spline(date, stock_data, spar = 2)
+
+plot(
+  date, 
+  stock_data,
+  main = "KO - Close price",
+  xlab = "Date",
+  ylab = "Close Price",
+  type = "l",
+  col = "black",
+  lwd = 2,
+  lty = 1
+)
+lines(spar_0, col='red', lwd = 2,)
+lines(spar_1, col='green', lwd = 2,)
+lines(spar_2, col='blue', lwd = 2,)
+
+legend("bottomleft", legend=c("raw","spar=0","spar=1", "spar=2"), col=c("black", "red", "green", "blue"), lty = 1, lwd = 2)
+```
+
+**Primer caso**
+
+- $spar=0$
+- $\lambda=0$
+- $df{\rightarrow}n$ 
+
+El spline de suavizado corresponderá a un interpolador entre los puntos de la señal.
+
+$RSS{\rightarrow}0$
+
+**Segundo caso**
+
+- $spar{\rightarrow}\infty$
+- $\lambda{\rightarrow}\infty$
+- $df{\rightarrow}0$ 
+
+El spline de suavizado mostrará la tendencia de los datos, inicio-fin.
+
+$RSS>>0$
+
+**Tercer caso**
+
+- $spar$ óptimo.
+
+Ya que el parámetro a buscar con `Cross Validation` es el `Parámetro de Smoothing`, se contará con el equivalente de $\lambda$, $df$.
+
+- $0 \leq \lambda_{eq} < \infty$
+- $2 \leq df_{eq} \leq n$
+
+# Búsqueda de `spar` con Cross Validation
+
+El proceso se lleva a cabo usando **Leave One Out Cross Validation** `LOO-CV` o **Generalized Cross Validation** `GCV` y minimiza el valor `RSS`.
 
 ## Leave One Out Cross Validation
 
 
 ```{r}
-smooth.spline(
+ss_loocv <- smooth.spline(
   date,
   stock_data,
   cv = TRUE,
   control =list(trace = TRUE, tol = 1e-1, low = -1.5)
 )
+ss_loocv
 ```
+
+
+```{r}
+spar_opt.loocv <- smooth.spline(date, stock_data, spar=ss_loocv$spar)
+```
+
 
 ## Generalized Cross Validation
 
 A diferencia de `LOO-CV` asigna pesos $w_i$ en cada observación de `CV` para ecualizar la influencia de las observaciones en la búsqueda de $\lambda$.
 
 ```{r}
-smooth.spline(
+ss_gcv <-smooth.spline(
   date,
   stock_data,
   cv=FALSE,
   control = list(trace = TRUE, tol = 1e-1, low = -1.5)
 )
+ss_gcv
 ```
 
+```{r}
+spar_opt.gcv <- smooth.spline(date, stock_data, spar=ss_gcv$spar)
+```
+
+Comparamos ambos resultados
+
+```{r}
+plot(
+  date, 
+  stock_data,
+  main = "KO - Close price",
+  xlab = "Date",
+  ylab = "Close Price",
+  type = "l",
+  col = "black",
+  lwd = 2,
+  lty = 1
+)
+lines(spar_opt.loocv, col='red', lwd = 3)
+lines(spar_opt.gcv, col='blue', lwd = 2)
+
+legend("bottomleft", legend=c("raw","LOO-CV","GCV"), col=c("black", "red", "blue"), lty = 1, lwd = 2)
+```
+
+> Si bien ambas técnicas pueden arrojar valores distintos para $\lambda$, $df$ está en manos del analista optar por uno u otro.
