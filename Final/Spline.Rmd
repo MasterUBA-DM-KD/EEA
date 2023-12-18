@@ -116,14 +116,41 @@ ggplot(data=KO, aes(x=date, y=KO.Close))+
 
 # Ejemplos Smoothing
 
+- ¿Cómo afecta el valor de $\lambda$ al suavizado?
+  - $\lambda=0$
+  - $\lambda{\rightarrow}\infty$
+
+- ¿Qué otros parámetros permiten modificar el suavizado?
+  - Grados de libertad `df`
+    - $df{\rightarrow}0$
+    - $df{\rightarrow}n$
+  - Smoothing parameter `spar`
+    - $spar=0$
+    - $spar{\rightarrow}\infty$
+
+
 [Spline Interactivo](http://127.0.0.1:7921)
 
 
 # Búsqueda de Lambda/CV
 
-El proceso se lleva a cabo usando **Leave One Out Cross Validation** (`LOOCV`).
+El proceso se lleva a cabo usando **Leave One Out Cross Validation** `LOO-CV` o **Generalized Cross Validation** `GCV`.
 
-## Sin LOOCV
+## Leave One Out Cross Validation
+
+
+```{r}
+smooth.spline(
+  date,
+  stock_data,
+  cv = TRUE,
+  control =list(trace = TRUE, tol = 1e-1, low = -1.5)
+)
+```
+
+## Generalized Cross Validation
+
+A diferencia de `LOO-CV` asigna pesos $w_i$ en cada observación de `CV` para ecualizar la influencia de las observaciones en la búsqueda de $\lambda$.
 
 ```{r}
 smooth.spline(
@@ -134,13 +161,3 @@ smooth.spline(
 )
 ```
 
-## Con LOOCV
-
-```{r}
-smooth.spline(
-  date,
-  stock_data,
-  cv = TRUE,
-  control =list(trace = TRUE, tol = 1e-1, low = -1.5)
-)
-```

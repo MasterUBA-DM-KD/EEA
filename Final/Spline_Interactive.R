@@ -31,7 +31,7 @@ ui <- fluidPage(
   titlePanel("Smoothing Parameter"),
   sidebarLayout(
     sidebarPanel(
-      sliderInput("spar", "Smoothing Parameter (spar):", min = 0, max = 1, value = 0.5, step = 0.0001),
+      sliderInput("spar", "Smoothing Parameter (spar):", min = 0, max = 2, value = 0.5, step = 0.1),
     ),
     mainPanel(
       plotOutput("stockPlotspar")
